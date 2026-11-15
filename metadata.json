@@ -1,0 +1,6 @@
+{
+  "name": "PRATO & TREINO",
+  "description": "Sua evolução começa aqui. Plataforma de alimentação personalizada, emagrecimento, treinos em casa e personal trainer com inteligência artificial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
