@@ -171,11 +171,13 @@ export function WorkoutsPage() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
 
-  // Lembretes Feedback
+  // Lembretes Feedback & Erros
   const [notifFeedback, setNotifFeedback] = useState<string | null>(null);
+  const [hubError, setHubError] = useState<string | null>(null);
 
   const loadHub = useCallback(async () => {
     setLoading(true);
+    setHubError(null);
     try {
       const [hub, weightRes] = await Promise.all([
         apiRequest<TrainingHubResponse>('/api/training/hub'),
@@ -192,21 +194,28 @@ export function WorkoutsPage() {
         setPlanDaysChoice(hub.trainingPlan.duration_days);
         setPlanLevelChoice(hub.trainingPlan.level);
       }
+    } catch (err) {
+      setHubError(err instanceof Error ? err.message : 'Não foi possível carregar os treinos.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadHub();
+    void loadHub();
   }, [loadHub]);
 
   const handleUpdatePreferences = async (patch: Partial<WorkoutPreferences>) => {
-    const res = await apiRequest<{ preferences: WorkoutPreferences }>('/api/training/preferences', {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    });
-    setPreferences(res.preferences);
+    try {
+      setHubError(null);
+      const res = await apiRequest<{ preferences: WorkoutPreferences }>('/api/training/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      });
+      setPreferences(res.preferences);
+    } catch (err) {
+      setHubError(err instanceof Error ? err.message : 'Não foi possível atualizar preferências.');
+    }
   };
 
   const handleToggleFavorite = async (exerciseId: string) => {
@@ -237,19 +246,25 @@ export function WorkoutsPage() {
       plan_day_number?: number | null;
     }
   ) => {
-    await apiRequest('/api/workout-logs', {
-      method: 'POST',
-      body: JSON.stringify({
-        workout_id: workout.id,
-        workout_title: workout.title,
-        ...sessionStats,
-      }),
-    });
-    await loadHub();
+    try {
+      setHubError(null);
+      await apiRequest('/api/workout-logs', {
+        method: 'POST',
+        body: JSON.stringify({
+          workout_id: workout.id,
+          workout_title: workout.title,
+          ...sessionStats,
+        }),
+      });
+      await loadHub();
+    } catch (err) {
+      setHubError(err instanceof Error ? err.message : 'Erro ao registrar treino concluído.');
+    }
   };
 
   const handleCreatePlan = async () => {
     setCreatingPlan(true);
+    setHubError(null);
     try {
       const res = await apiRequest<{ trainingPlan: TrainingPlan }>('/api/training/plans', {
         method: 'POST',
@@ -260,6 +275,8 @@ export function WorkoutsPage() {
         }),
       });
       setTrainingPlan(res.trainingPlan);
+    } catch (err) {
+      setHubError(err instanceof Error ? err.message : 'Não foi possível criar o plano de treino.');
     } finally {
       setCreatingPlan(false);
     }
@@ -315,14 +332,21 @@ export function WorkoutsPage() {
       setCustomTitle('');
       setSubTab('home');
       setSelectedCategory('Todas');
+    } catch (err) {
+      setHubError(err instanceof Error ? err.message : 'Não foi possível salvar o treino personalizado.');
     } finally {
       setSavingCustom(false);
     }
   };
 
   const handleDeleteCustomWorkout = async (workoutId: string) => {
-    await apiRequest(`/api/workouts/${workoutId}`, { method: 'DELETE' });
-    setWorkouts((prev) => prev.filter((w) => w.id !== workoutId));
+    try {
+      setHubError(null);
+      await apiRequest(`/api/workouts/${workoutId}`, { method: 'DELETE' });
+      setWorkouts((prev) => prev.filter((w) => w.id !== workoutId));
+    } catch (err) {
+      setHubError(err instanceof Error ? err.message : 'Não foi possível excluir o treino.');
+    }
   };
 
   const handleRequestNotifications = async () => {
@@ -430,6 +454,19 @@ export function WorkoutsPage() {
 
   return (
     <div className="space-y-6">
+      {hubError && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+          <span>{hubError}</span>
+          <button
+            type="button"
+            onClick={() => void loadHub()}
+            className="rounded-lg border border-rose-400/40 bg-[#0A0D0B] px-3 py-1.5 font-medium text-rose-200 hover:bg-white/5"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       {/* Banner discreto opcional caso as tabelas 002 ainda não tenham sido coladas no Supabase */}
       {migrationPending && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs text-amber-100">

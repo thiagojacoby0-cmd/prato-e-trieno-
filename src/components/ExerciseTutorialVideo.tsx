@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Users } from 'lucide-react';
 import type { ExerciseTutorialSpec, TutorialArchetype } from '../types';
 import { apiRequest } from '../services/apiClient';
 import { buildLocalTutorialSpec } from '../utils/exerciseTutorials';
 import { ThreeExerciseDemo } from './ThreeExerciseDemo';
+import { VectorExerciseDemo } from './VectorExerciseDemo';
 
 interface ExerciseTutorialVideoProps {
   exerciseName: string;
@@ -18,6 +19,7 @@ interface ExerciseTutorialVideoProps {
   playing?: boolean;
   onTogglePlaying?: () => void;
   heightClass?: string;
+  stepCounterLabel?: string;
 }
 
 const MUSCLE_ZONE_LABELS: Record<string, string> = {
@@ -46,6 +48,7 @@ export function ExerciseTutorialVideo({
   playing,
   onTogglePlaying,
   heightClass,
+  stepCounterLabel,
 }: ExerciseTutorialVideoProps) {
   const localFallback = useMemo(
     () => buildLocalTutorialSpec(exerciseName, muscleGroup, instructions, explicitArchetype),
@@ -55,6 +58,7 @@ export function ExerciseTutorialVideo({
   const [spec, setSpec] = useState<ExerciseTutorialSpec>(localFallback);
   const [aiEnriched, setAiEnriched] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
+  const [viewMode, setViewMode] = useState<'vector' | '3d'>('vector');
 
   // Sincroniza modelo local imediato e enriquece com Gemini quando disponível
   useEffect(() => {
@@ -89,7 +93,7 @@ export function ExerciseTutorialVideo({
         }
       })
       .catch(() => {
-        // Fallback local já contém o modelo 3D completo
+        // Fallback local já contém o modelo completo
       })
       .finally(() => {
         if (!cancelled) setLoadingAI(false);
@@ -104,14 +108,41 @@ export function ExerciseTutorialVideo({
 
   return (
     <div className="space-y-3 text-left">
-      <ThreeExerciseDemo
-        exerciseName={exerciseName}
-        muscleGroup={muscleGroup}
-        spec={spec}
-        playing={playing}
-        onTogglePlaying={onTogglePlaying}
-        heightClass={effectiveHeight}
-      />
+      {viewMode === 'vector' ? (
+        <VectorExerciseDemo
+          exerciseName={exerciseName}
+          muscleGroup={muscleGroup}
+          spec={spec}
+          correctPosition={correctPosition}
+          playing={playing}
+          onTogglePlaying={onTogglePlaying}
+          onSwitchTo3D={() => setViewMode('3d')}
+          heightClass={effectiveHeight}
+          stepCounterLabel={stepCounterLabel}
+        />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[#9AA8A0]">Visualização 3D interativa</span>
+            <button
+              type="button"
+              onClick={() => setViewMode('vector')}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#22C55E]/40 bg-[#22C55E]/15 px-2.5 py-1 text-xs font-medium text-[#22C55E] hover:bg-[#22C55E]/25"
+            >
+              <Users className="h-3.5 w-3.5" />
+              Voltar à ilustração animada
+            </button>
+          </div>
+          <ThreeExerciseDemo
+            exerciseName={exerciseName}
+            muscleGroup={muscleGroup}
+            spec={spec}
+            playing={playing}
+            onTogglePlaying={onTogglePlaying}
+            heightClass={effectiveHeight}
+          />
+        </div>
+      )}
 
       {!hideTextGuide && (
         <div className="rounded-xl border border-white/8 bg-[#121915] p-3.5">
@@ -121,7 +152,7 @@ export function ExerciseTutorialVideo({
             </p>
             <span className="inline-flex items-center gap-1 text-[11px] text-[#8F9E95]">
               <Sparkles className="h-3 w-3 text-[#22C55E]" />
-              {loadingAI ? 'Refinando com IA...' : aiEnriched ? 'Personalizado por IA' : 'Modelo 3D anatômico'}
+              {loadingAI ? 'Refinando com IA...' : aiEnriched ? 'Personalizado por IA' : 'Demonstração anatômica'}
             </span>
           </div>
 

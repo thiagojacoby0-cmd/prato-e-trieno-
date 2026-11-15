@@ -530,6 +530,8 @@ export function WorkoutPlayerModal({
                       muscleGroup={setIndex < currentExercise.sets ? currentExercise.muscle_group : nextItem.exercise.muscle_group}
                       instructions={setIndex < currentExercise.sets ? currentExercise.instructions : nextItem.exercise.instructions}
                       explicitArchetype={setIndex < currentExercise.sets ? currentExercise.demo_archetype : nextItem.exercise.demo_archetype}
+                      correctPosition={setIndex < currentExercise.sets ? currentExercise.correct_position : nextItem.exercise.correct_position}
+                      stepCounterLabel={`${Math.min(exIndex + (setIndex < currentExercise.sets ? 1 : 2), queue.length)}/${queue.length}`}
                       hideTextGuide
                       heightClass="h-52 sm:h-60"
                     />
@@ -542,6 +544,8 @@ export function WorkoutPlayerModal({
                     muscleGroup={currentExercise.muscle_group}
                     instructions={currentExercise.instructions}
                     explicitArchetype={currentExercise.demo_archetype}
+                    correctPosition={currentExercise.correct_position}
+                    stepCounterLabel={`${Math.min(exIndex + 1, queue.length)}/${queue.length}`}
                     hideTextGuide
                     playing={running}
                     onTogglePlaying={() => setRunning((r) => !r)}

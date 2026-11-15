@@ -116,6 +116,7 @@ export function WorkoutTutorialModal({
             correctPosition={ex.correct_position}
             commonMistakes={ex.common_mistakes}
             targetMuscles={ex.target_muscles}
+            stepCounterLabel={`${selectedIdx + 1}/${allItems.length}`}
           />
         </div>
 

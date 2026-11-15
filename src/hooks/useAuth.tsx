@@ -1,6 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AppConfigInfo, UserProfile } from '../types';
-import { apiRequest, getStoredToken, setStoredToken } from '../services/apiClient';
+import {
+  apiRequest,
+  clearStoredSession,
+  getStoredToken,
+  setAuthExpiredListener,
+  setStoredAuthMode,
+  setStoredRefreshToken,
+  setStoredToken,
+} from '../services/apiClient';
 
 interface AuthContextValue {
   profile: UserProfile | null;
@@ -17,6 +25,12 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>;
 }
 
+interface AuthSessionResponse {
+  token: string;
+  refreshToken?: string | null;
+  profile: UserProfile;
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -25,12 +39,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initError, setInitError] = useState<string | null>(null);
   const [configInfo, setConfigInfo] = useState<AppConfigInfo | null>(null);
 
+  useEffect(() => {
+    setAuthExpiredListener(() => {
+      setProfile(null);
+    });
+    return () => setAuthExpiredListener(null);
+  }, []);
+
   const enterPersonalMode = useCallback(async () => {
     setInitError(null);
-    const data = await apiRequest<{ token: string; profile: UserProfile }>('/api/auth/personal', {
+    const data = await apiRequest<AuthSessionResponse>('/api/auth/personal', {
       method: 'POST',
     });
     setStoredToken(data.token);
+    setStoredRefreshToken(data.refreshToken || null);
+    setStoredAuthMode('personal');
     setProfile(data.profile);
   }, []);
 
@@ -47,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
           return;
         } catch {
-          setStoredToken(null);
+          clearStoredSession();
         }
       }
 
@@ -75,20 +98,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshProfile]);
 
   const login = async (email: string, password: string) => {
-    const data = await apiRequest<{ token: string; profile: UserProfile }>('/api/auth/login', {
+    const data = await apiRequest<AuthSessionResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
     setStoredToken(data.token);
+    setStoredRefreshToken(data.refreshToken || null);
+    setStoredAuthMode('credentials');
     setProfile(data.profile);
   };
 
   const register = async (fullName: string, email: string, password: string) => {
-    const data = await apiRequest<{ token: string; profile: UserProfile }>('/api/auth/register', {
+    const data = await apiRequest<AuthSessionResponse>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ full_name: fullName, email, password }),
     });
     setStoredToken(data.token);
+    setStoredRefreshToken(data.refreshToken || null);
+    setStoredAuthMode('credentials');
     setProfile(data.profile);
   };
 
@@ -100,16 +127,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const verifyEmailOtp = async (email: string, code: string) => {
-    const data = await apiRequest<{ token: string; profile: UserProfile }>('/api/auth/otp-verify', {
+    const data = await apiRequest<AuthSessionResponse>('/api/auth/otp-verify', {
       method: 'POST',
       body: JSON.stringify({ email, code }),
     });
     setStoredToken(data.token);
+    setStoredRefreshToken(data.refreshToken || null);
+    setStoredAuthMode('credentials');
     setProfile(data.profile);
   };
 
   const logout = () => {
-    setStoredToken(null);
+    clearStoredSession();
     setProfile(null);
   };
 

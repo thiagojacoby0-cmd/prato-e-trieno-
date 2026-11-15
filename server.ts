@@ -62,6 +62,28 @@ function verifyLocalToken(token: string): string | null {
   return parsed.userId || null;
 }
 
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = new Set([
+    'https://localhost',
+    'http://localhost',
+    'http://localhost:3000',
+    'capacitor://localhost',
+    'ionic://localhost',
+  ]);
+  if (origin && (allowedOrigins.has(origin) || /^https?:\/\/localhost(:\d+)?$/i.test(origin))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  }
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
@@ -164,13 +186,39 @@ app.post('/api/auth/register', async (req, res) => {
       });
 
       const authClient = sbAnon || sbAdmin;
+      let accessToken: string | null = null;
+      let refreshToken: string | null = null;
+
       const { data: signInData } = await authClient.auth.signInWithPassword({
         email: normalizedEmail,
         password,
       });
+      if (signInData?.session) {
+        accessToken = signInData.session.access_token;
+        refreshToken = signInData.session.refresh_token;
+      } else {
+        const { data: linkData } = await sbAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: normalizedEmail,
+        });
+        if (linkData?.properties?.hashed_token) {
+          const { data: otpData } = await authClient.auth.verifyOtp({
+            token_hash: linkData.properties.hashed_token,
+            type: 'magiclink',
+          });
+          accessToken = otpData?.session?.access_token || null;
+          refreshToken = otpData?.session?.refresh_token || null;
+        }
+      }
+
+      if (!accessToken) {
+        res.status(500).json({ error: 'Não foi possível iniciar sessão no Supabase.' });
+        return;
+      }
 
       res.json({
-        token: signInData?.session?.access_token || signLocalToken(data.user.id),
+        token: accessToken,
+        refreshToken,
         profile,
       });
       return;
@@ -202,7 +250,11 @@ app.post('/api/auth/register', async (req, res) => {
         })
       );
 
-      res.json({ token: data.session.access_token, profile });
+      res.json({
+        token: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        profile,
+      });
       return;
     }
 
@@ -241,7 +293,11 @@ app.post('/api/auth/login', async (req, res) => {
         })
       );
 
-      res.json({ token: data.session.access_token, profile });
+      res.json({
+        token: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        profile,
+      });
       return;
     }
 
@@ -310,11 +366,77 @@ app.post('/api/auth/otp-verify', async (req, res) => {
       })
     );
 
-    res.json({ token: data.session.access_token, profile });
+    res.json({
+      token: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      profile,
+    });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Falha ao verificar código.' });
   }
 });
+
+async function issuePersonalSupabaseSession() {
+  const sbAdmin = getSupabaseAdmin();
+  const sbAuth = getSupabaseAnon() || sbAdmin;
+  if (!sbAdmin || !sbAuth) {
+    throw new Error(
+      'Acesso automático sem senha requer SUPABASE_SERVICE_ROLE_KEY no servidor, ou use o código enviado por e-mail.'
+    );
+  }
+
+  const defaultEmail = (process.env.PERSONAL_OWNER_EMAIL || 'thiagojacoby0@gmail.com').trim().toLowerCase();
+  const { data: listData, error: listErr } = await sbAdmin.auth.admin.listUsers({ page: 1, perPage: 20 });
+  if (listErr) {
+    throw new Error(listErr.message);
+  }
+
+  const existing =
+    listData?.users?.find((u) => u.email?.toLowerCase() === defaultEmail) || listData?.users?.[0];
+
+  let ownerEmail = existing?.email || defaultEmail;
+  if (!existing) {
+    const { data: created, error: createErr } = await sbAdmin.auth.admin.createUser({
+      email: defaultEmail,
+      email_confirm: true,
+      user_metadata: { full_name: 'Thiago' },
+    });
+    if (createErr || !created.user) {
+      throw new Error(createErr?.message || 'Erro ao criar conta pessoal no Supabase.');
+    }
+    ownerEmail = created.user.email || defaultEmail;
+  }
+
+  const { data: linkData, error: linkErr } = await sbAdmin.auth.admin.generateLink({
+    type: 'magiclink',
+    email: ownerEmail,
+  });
+  if (linkErr || !linkData?.properties?.hashed_token) {
+    throw new Error(linkErr?.message || 'Não foi possível gerar sessão automática.');
+  }
+
+  const { data: sessionData, error: otpErr } = await sbAuth.auth.verifyOtp({
+    token_hash: linkData.properties.hashed_token,
+    type: 'magiclink',
+  });
+  if (otpErr || !sessionData.session || !sessionData.user) {
+    throw new Error(otpErr?.message || 'Erro ao iniciar sessão pessoal no Supabase.');
+  }
+
+  const profile = await runWithSupabaseToken(sessionData.session.access_token, () =>
+    repo.ensureSupabaseProfile({
+      id: sessionData.user!.id,
+      email: sessionData.user!.email || ownerEmail,
+      full_name: (sessionData.user!.user_metadata?.full_name as string) || 'Thiago',
+    })
+  );
+
+  return {
+    token: sessionData.session.access_token,
+    refreshToken: sessionData.session.refresh_token,
+    profile,
+  };
+}
 
 app.post('/api/auth/personal', async (_req, res) => {
   try {
@@ -329,65 +451,62 @@ app.post('/api/auth/personal', async (_req, res) => {
         return;
       }
 
-      const defaultEmail = (process.env.PERSONAL_OWNER_EMAIL || 'thiagojacoby0@gmail.com').trim().toLowerCase();
-      const { data: listData, error: listErr } = await sbAdmin.auth.admin.listUsers({ page: 1, perPage: 20 });
-      if (listErr) {
-        res.status(500).json({ error: listErr.message });
-        return;
-      }
-
-      const existing =
-        listData?.users?.find((u) => u.email?.toLowerCase() === defaultEmail) || listData?.users?.[0];
-
-      let ownerEmail = existing?.email || defaultEmail;
-      if (!existing) {
-        const { data: created, error: createErr } = await sbAdmin.auth.admin.createUser({
-          email: defaultEmail,
-          email_confirm: true,
-          user_metadata: { full_name: 'Thiago' },
-        });
-        if (createErr || !created.user) {
-          res.status(500).json({ error: createErr?.message || 'Erro ao criar conta pessoal no Supabase.' });
-          return;
-        }
-        ownerEmail = created.user.email || defaultEmail;
-      }
-
-      const { data: linkData, error: linkErr } = await sbAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: ownerEmail,
-      });
-      if (linkErr || !linkData?.properties?.hashed_token) {
-        res.status(500).json({ error: linkErr?.message || 'Não foi possível gerar sessão automática.' });
-        return;
-      }
-
-      const { data: sessionData, error: otpErr } = await sbAuth.auth.verifyOtp({
-        token_hash: linkData.properties.hashed_token,
-        type: 'magiclink',
-      });
-      if (otpErr || !sessionData.session || !sessionData.user) {
-        res.status(500).json({ error: otpErr?.message || 'Erro ao iniciar sessão pessoal no Supabase.' });
-        return;
-      }
-
-      const profile = await runWithSupabaseToken(sessionData.session.access_token, () =>
-        repo.ensureSupabaseProfile({
-          id: sessionData.user!.id,
-          email: sessionData.user!.email || ownerEmail,
-          full_name: (sessionData.user!.user_metadata?.full_name as string) || 'Thiago',
-        })
-      );
-
-      res.json({ token: sessionData.session.access_token, profile });
+      const result = await issuePersonalSupabaseSession();
+      res.json(result);
       return;
     }
 
     const profile = await repo.verifyLocalUserCredentials('demo@pratotreino.com.br', 'Demo@123');
     const token = signLocalToken(profile.id);
-    res.json({ token, profile });
+    res.json({ token, refreshToken: null, profile });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao acessar perfil pessoal.' });
+  }
+});
+
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken, allowPersonalFallback } = (req.body || {}) as {
+      refreshToken?: string;
+      allowPersonalFallback?: boolean;
+    };
+
+    if (isSupabaseConfigured()) {
+      const sbAuth = getSupabaseAnon() || getSupabaseAdmin();
+      if (sbAuth && refreshToken) {
+        const { data, error } = await sbAuth.auth.refreshSession({ refresh_token: refreshToken });
+        if (!error && data.session && data.user) {
+          const profile = await runWithSupabaseToken(data.session.access_token, () =>
+            repo.ensureSupabaseProfile({
+              id: data.user!.id,
+              email: data.user!.email || '',
+              full_name: (data.user!.user_metadata?.full_name as string) || 'Meu Perfil',
+            })
+          );
+          res.json({
+            token: data.session.access_token,
+            refreshToken: data.session.refresh_token,
+            profile,
+          });
+          return;
+        }
+      }
+
+      if (allowPersonalFallback !== false && hasSupabaseServiceRole()) {
+        const result = await issuePersonalSupabaseSession();
+        res.json(result);
+        return;
+      }
+
+      res.status(401).json({ error: 'Sessão Supabase expirada. Faça login novamente.' });
+      return;
+    }
+
+    const profile = await repo.verifyLocalUserCredentials('demo@pratotreino.com.br', 'Demo@123');
+    const token = signLocalToken(profile.id);
+    res.json({ token, refreshToken: null, profile });
+  } catch (err) {
+    res.status(401).json({ error: err instanceof Error ? err.message : 'Não foi possível renovar a sessão.' });
   }
 });
 
