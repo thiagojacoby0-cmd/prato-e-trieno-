@@ -78,52 +78,61 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "pwa-maskable-512x512.png",
-    "revision": "449eb6a57d801af1acd4afecfe01444a"
+    "revision": "10ad6a81f8ff6ea6561ba508e7ba3a50"
   }, {
     "url": "pwa-512x512.png",
-    "revision": "79628be44157da44950543fe8bf5be65"
+    "revision": "7b13f257adfedc6e835122a2efa59306"
   }, {
     "url": "pwa-192x192.png",
-    "revision": "a8bd45cc21714fd5038aeccc78f552f8"
+    "revision": "fa35d4d4a96dcdb3091726b8f6c21e55"
   }, {
     "url": "index.html",
-    "revision": "d2561ceb71ecf2cd598b61a5456bc1d0"
+    "revision": "7949038be9cdf95a3092d890e1cf24b2"
   }, {
     "url": "icon.svg",
     "revision": "e6ca988fd68d17b8c32c10ebf8e8daff"
   }, {
     "url": "apple-touch-icon.png",
-    "revision": "8827964488225f547af16ea26d157fd1"
+    "revision": "e06963a4d2212ced5a1f084f046c8d80"
+  }, {
+    "url": "app-logo.png",
+    "revision": "7b13f257adfedc6e835122a2efa59306"
   }, {
     "url": "assets/workbox-window.prod.es5-Bd17z0YL.js",
     "revision": null
   }, {
-    "url": "assets/index-DfvD3T1F.css",
+    "url": "assets/index-HklYeEN1.js",
     "revision": null
   }, {
-    "url": "assets/index-Cd435Dzd.js",
+    "url": "assets/index-Dihbuala.css",
     "revision": null
   }, {
     "url": "assets/aistudio/page-2-1024x695_633aaebb.jpg",
     "revision": null
   }, {
-    "url": "apple-touch-icon.png",
-    "revision": "8827964488225f547af16ea26d157fd1"
+    "url": "assets/aistudio/esta_assim_5dacd9e3.jpg",
+    "revision": null
   }, {
-    "url": "icon.svg",
-    "revision": "e6ca988fd68d17b8c32c10ebf8e8daff"
+    "url": "assets/aistudio/Logo_para_Prato_e_Treino_644577ff.png",
+    "revision": null
+  }, {
+    "url": "app-logo.png",
+    "revision": "7b13f257adfedc6e835122a2efa59306"
+  }, {
+    "url": "apple-touch-icon.png",
+    "revision": "e06963a4d2212ced5a1f084f046c8d80"
   }, {
     "url": "pwa-192x192.png",
-    "revision": "a8bd45cc21714fd5038aeccc78f552f8"
+    "revision": "fa35d4d4a96dcdb3091726b8f6c21e55"
   }, {
     "url": "pwa-512x512.png",
-    "revision": "79628be44157da44950543fe8bf5be65"
+    "revision": "7b13f257adfedc6e835122a2efa59306"
   }, {
     "url": "pwa-maskable-512x512.png",
-    "revision": "449eb6a57d801af1acd4afecfe01444a"
+    "revision": "10ad6a81f8ff6ea6561ba508e7ba3a50"
   }, {
     "url": "manifest.webmanifest",
-    "revision": "cf7ac3142d051d164a6368abc00b7b73"
+    "revision": "7aafd4372c005ac1277c4df85c1ed4df"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {

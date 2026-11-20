@@ -2,19 +2,102 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
-import { v4Fallback } from './uuidHelper';
-import { DEFAULT_WORKOUT_CATALOG } from './seedWorkouts';
-import { getLastNDaysISO, getTodayISO } from '../utils/nutrition';
+import { v4Fallback } from './uuidHelper.ts';
+import { DEFAULT_WORKOUT_CATALOG } from './seedWorkouts.ts';
+import { getLastNDaysISO, getTodayISO } from '../utils/nutrition.ts';
+import { BACKUPS_DIR, DATA_DIR, ensureAppDirectories } from './paths.ts';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+ensureAppDirectories();
 
 const DB_PATH = path.join(DATA_DIR, 'prato_treino.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+
+const BACKUP_FILE_RE = /^prato_treino-(\d{4}-\d{2}-\d{2})\.db$/;
+const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+let lastBackupRunMs = 0;
+let autoBackupTimer: ReturnType<typeof setInterval> | null = null;
+
+function pruneOldBackups(keepDays: number): void {
+  if (!fs.existsSync(BACKUPS_DIR)) return;
+  const cutoffMs = Date.now() - Math.max(1, keepDays) * 24 * 60 * 60 * 1000;
+  for (const name of fs.readdirSync(BACKUPS_DIR)) {
+    const match = BACKUP_FILE_RE.exec(name);
+    if (!match) continue;
+    const fullPath = path.join(BACKUPS_DIR, name);
+    try {
+      const stat = fs.statSync(fullPath);
+      const dateMs = Date.parse(`${match[1]}T23:59:59.000Z`);
+      if (stat.mtimeMs < cutoffMs && (!Number.isFinite(dateMs) || dateMs < cutoffMs)) {
+        fs.unlinkSync(fullPath);
+      }
+    } catch {
+      // Ignore cleanup race errors
+    }
+  }
+}
+
+export async function backupDatabase(force = false): Promise<{ created: boolean; path: string | null }> {
+  ensureAppDirectories();
+  const today = getTodayISO();
+  const destPath = path.join(BACKUPS_DIR, `prato_treino-${today}.db`);
+  const now = Date.now();
+
+  if (!force) {
+    if (lastBackupRunMs > 0 && now - lastBackupRunMs < SIX_HOURS_MS) {
+      return { created: false, path: null };
+    }
+    try {
+      let latestMtime = 0;
+      for (const name of fs.readdirSync(BACKUPS_DIR)) {
+        if (!BACKUP_FILE_RE.test(name)) continue;
+        const st = fs.statSync(path.join(BACKUPS_DIR, name));
+        if (st.mtimeMs > latestMtime) latestMtime = st.mtimeMs;
+      }
+      if (latestMtime > 0 && now - latestMtime < SIX_HOURS_MS) {
+        lastBackupRunMs = latestMtime;
+        return { created: false, path: null };
+      }
+    } catch {
+      // Continue with backup if stat fails
+    }
+  }
+
+  const tmpPath = `${destPath}.tmp-${process.pid}-${now}`;
+  try {
+    await db.backup(tmpPath);
+    fs.renameSync(tmpPath, destPath);
+    lastBackupRunMs = now;
+    const keepDays = Math.max(1, Number(process.env.BACKUP_KEEP_DAYS) || 14);
+    pruneOldBackups(keepDays);
+    return { created: true, path: destPath };
+  } catch (err) {
+    if (fs.existsSync(tmpPath)) {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch {
+        // Ignore cleanup failure
+      }
+    }
+    throw err;
+  }
+}
+
+export function startAutoBackup(): void {
+  void backupDatabase(false).catch((err) => {
+    console.warn('Backup automático inicial falhou:', err instanceof Error ? err.message : err);
+  });
+  if (autoBackupTimer) return;
+  autoBackupTimer = setInterval(() => {
+    void backupDatabase(false).catch((err) => {
+      console.warn('Backup automático periódico falhou:', err instanceof Error ? err.message : err);
+    });
+  }, SIX_HOURS_MS);
+  if (typeof autoBackupTimer.unref === 'function') {
+    autoBackupTimer.unref();
+  }
+}
 
 function ensureSqliteColumn(table: string, column: string, definition: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
@@ -50,7 +133,7 @@ export function initSqliteDatabase() {
       protein_target_g INTEGER NOT NULL DEFAULT 150,
       carbs_target_g INTEGER NOT NULL DEFAULT 200,
       fat_target_g INTEGER NOT NULL DEFAULT 60,
-      water_target_ml INTEGER NOT NULL DEFAULT 2700,
+      water_target_ml INTEGER NOT NULL DEFAULT 2000,
       avatar_url TEXT,
       onboarding_completed INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
@@ -306,7 +389,7 @@ function seedDemoUser() {
     160,
     205,
     58,
-    2800,
+    2000,
     now,
     now
   );
@@ -426,9 +509,9 @@ function seedDemoUser() {
     INSERT INTO workout_logs (id, user_id, workout_id, workout_title, date, duration_minutes, calories_burned, exercises_completed, notes, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  insertWorkoutLog.run(v4Fallback(), demoId, 'wkt-cardio-hiit-18', 'HIIT Queima Rápida em Casa', last7[1], 18, 225, 5, 'Ritmo intenso', now);
-  insertWorkoutLog.run(v4Fallback(), demoId, 'wkt-corpo-base-25', 'Força Full Body Sem Equipamentos', last7[3], 25, 220, 6, 'Boa evolução nas flexões', now);
-  insertWorkoutLog.run(v4Fallback(), demoId, 'wkt-gluteos-foco-20', 'Glúteos Esculpidos & Estabilidade', last7[5], 20, 175, 4, 'Treino completo', now);
+  insertWorkoutLog.run(v4Fallback(), demoId, 'wkt-emagrecimento-hiit-20', 'HIIT Queima Rápida em Casa', last7[1], 18, 225, 5, 'Ritmo intenso', now);
+  insertWorkoutLog.run(v4Fallback(), demoId, 'wkt-corpo-iniciante', 'Corpo Inteiro Fundamental', last7[3], 25, 220, 6, 'Boa evolução nas flexões', now);
+  insertWorkoutLog.run(v4Fallback(), demoId, 'wkt-gluteos-modelador', 'Glúteos Firmes & Levantados', last7[5], 20, 175, 4, 'Treino completo', now);
 
   db.prepare('INSERT INTO coach_messages (id, user_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)').run(
     v4Fallback(),

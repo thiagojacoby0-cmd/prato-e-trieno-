@@ -5,8 +5,8 @@ import http from 'node:http';
 import express, { NextFunction, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
-import { initSqliteDatabase } from './src/database/sqlite';
+import { DATA_DIR, UPLOADS_DIR } from './src/database/paths.ts';
+import { initSqliteDatabase, startAutoBackup } from './src/database/sqlite.ts';
 import {
   getSupabaseAdmin,
   getSupabaseAnon,
@@ -14,8 +14,8 @@ import {
   hasSupabaseServiceRole,
   isSupabaseConfigured,
   runWithSupabaseToken,
-} from './src/database/supabaseClient';
-import * as repo from './src/database/repository';
+} from './src/database/supabaseClient.ts';
+import * as repo from './src/database/repository.ts';
 import {
   analyzeMealWithAI,
   chatWithCoachAI,
@@ -23,18 +23,20 @@ import {
   generateMealPlanWithAI,
   generateWorkoutWithAI,
   isGeminiConfigured,
-} from './src/api/geminiService';
-import { buildLocalTutorialSpec } from './src/utils/exerciseTutorials';
-import { getTodayISO } from './src/utils/nutrition';
+} from './src/api/geminiService.ts';
+import { buildLocalTutorialSpec } from './src/utils/exerciseTutorials.ts';
+import { estimateMealLocally } from './src/utils/mealNutritionParser.ts';
+import { getTodayISO } from './src/utils/nutrition.ts';
+import { sanitizeNutritionBackup } from './src/utils/nutritionHistory.ts';
 
 initSqliteDatabase();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
 function getLocalSessionKey(): string {
-  const keyFile = path.resolve(process.cwd(), 'data', '.session_key');
+  const keyFile = path.join(DATA_DIR, '.session_key');
   if (fs.existsSync(keyFile)) {
     return fs.readFileSync(keyFile, 'utf8').trim();
   }
@@ -62,20 +64,56 @@ function verifyLocalToken(token: string): string | null {
   return parsed.userId || null;
 }
 
+function signPersistentSessionToken(userId: string, email: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({ userId, email: email.trim().toLowerCase(), type: 'persistent' })
+  ).toString('base64url');
+  const sig = crypto.createHmac('sha256', LOCAL_SESSION_KEY).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyPersistentSessionToken(token: string): { userId: string; email: string } | null {
+  try {
+    const [payload, sig] = token.split('.');
+    if (!payload || !sig) return null;
+    const expected = crypto.createHmac('sha256', LOCAL_SESSION_KEY).update(payload).digest('base64url');
+    if (sig.length !== expected.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+      userId?: string;
+      email?: string;
+      type?: string;
+    };
+    if (parsed.type !== 'persistent' || !parsed.userId || !parsed.email) return null;
+    return { userId: parsed.userId, email: parsed.email };
+  } catch {
+    return null;
+  }
+}
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = new Set([
     'https://localhost',
     'http://localhost',
     'http://localhost:3000',
+    'https://127.0.0.1',
+    'http://127.0.0.1',
     'capacitor://localhost',
     'ionic://localhost',
   ]);
-  if (origin && (allowedOrigins.has(origin) || /^https?:\/\/localhost(:\d+)?$/i.test(origin))) {
+  if (
+    origin &&
+    (allowedOrigins.has(origin) ||
+      /^https?:\/\/localhost(:\d+)?$/i.test(origin) ||
+      /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin) ||
+      /^https:\/\/[a-z0-9.-]+\.run\.app$/i.test(origin))
+  ) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
   }
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -85,7 +123,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '10mb' }));
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 interface AuthenticatedRequest extends Request {
   userId?: string;
@@ -130,7 +168,10 @@ async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextF
 app.get('/api/health', async (_req, res) => {
   let trainingMigrationPending = false;
   try {
-    trainingMigrationPending = await repo.checkTrainingMigrationPending();
+    trainingMigrationPending = await Promise.race([
+      repo.checkTrainingMigrationPending(),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+    ]);
   } catch {
     trainingMigrationPending = false;
   }
@@ -219,6 +260,7 @@ app.post('/api/auth/register', async (req, res) => {
       res.json({
         token: accessToken,
         refreshToken,
+        persistentToken: signPersistentSessionToken(profile.id, profile.email),
         profile,
       });
       return;
@@ -253,6 +295,7 @@ app.post('/api/auth/register', async (req, res) => {
       res.json({
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
+        persistentToken: signPersistentSessionToken(profile.id, profile.email),
         profile,
       });
       return;
@@ -260,7 +303,12 @@ app.post('/api/auth/register', async (req, res) => {
 
     const profile = await repo.createLocalUserAndProfile({ email, password, full_name });
     const token = signLocalToken(profile.id);
-    res.json({ token, profile });
+    res.json({
+      token,
+      refreshToken: null,
+      persistentToken: signPersistentSessionToken(profile.id, profile.email),
+      profile,
+    });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Erro ao registrar usuário.' });
   }
@@ -296,6 +344,7 @@ app.post('/api/auth/login', async (req, res) => {
       res.json({
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
+        persistentToken: signPersistentSessionToken(profile.id, profile.email),
         profile,
       });
       return;
@@ -303,7 +352,12 @@ app.post('/api/auth/login', async (req, res) => {
 
     const profile = await repo.verifyLocalUserCredentials(email, password);
     const token = signLocalToken(profile.id);
-    res.json({ token, profile });
+    res.json({
+      token,
+      refreshToken: null,
+      persistentToken: signPersistentSessionToken(profile.id, profile.email),
+      profile,
+    });
   } catch (err) {
     res.status(401).json({ error: err instanceof Error ? err.message : 'Falha na autenticação.' });
   }
@@ -369,6 +423,7 @@ app.post('/api/auth/otp-verify', async (req, res) => {
     res.json({
       token: data.session.access_token,
       refreshToken: data.session.refresh_token,
+      persistentToken: signPersistentSessionToken(profile.id, profile.email),
       profile,
     });
   } catch (err) {
@@ -434,6 +489,7 @@ async function issuePersonalSupabaseSession() {
   return {
     token: sessionData.session.access_token,
     refreshToken: sessionData.session.refresh_token,
+    persistentToken: signPersistentSessionToken(profile.id, profile.email),
     profile,
   };
 }
@@ -458,7 +514,12 @@ app.post('/api/auth/personal', async (_req, res) => {
 
     const profile = await repo.verifyLocalUserCredentials('demo@pratotreino.com.br', 'Demo@123');
     const token = signLocalToken(profile.id);
-    res.json({ token, refreshToken: null, profile });
+    res.json({
+      token,
+      refreshToken: null,
+      persistentToken: signPersistentSessionToken(profile.id, profile.email),
+      profile,
+    });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao acessar perfil pessoal.' });
   }
@@ -466,13 +527,18 @@ app.post('/api/auth/personal', async (_req, res) => {
 
 app.post('/api/auth/refresh', async (req, res) => {
   try {
-    const { refreshToken, allowPersonalFallback } = (req.body || {}) as {
+    const { refreshToken, persistentToken, allowPersonalFallback } = (req.body || {}) as {
       refreshToken?: string;
+      persistentToken?: string;
       allowPersonalFallback?: boolean;
     };
 
+    const verifiedPersistent = persistentToken ? verifyPersistentSessionToken(persistentToken) : null;
+
     if (isSupabaseConfigured()) {
       const sbAuth = getSupabaseAnon() || getSupabaseAdmin();
+      const sbAdmin = getSupabaseAdmin();
+
       if (sbAuth && refreshToken) {
         const { data, error } = await sbAuth.auth.refreshSession({ refresh_token: refreshToken });
         if (!error && data.session && data.user) {
@@ -486,9 +552,41 @@ app.post('/api/auth/refresh', async (req, res) => {
           res.json({
             token: data.session.access_token,
             refreshToken: data.session.refresh_token,
+            persistentToken: signPersistentSessionToken(profile.id, profile.email),
             profile,
           });
           return;
+        }
+      }
+
+      if (verifiedPersistent && sbAdmin && sbAuth) {
+        const { data: linkData, error: linkErr } = await sbAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: verifiedPersistent.email,
+        });
+        if (!linkErr && linkData?.properties?.hashed_token) {
+          const { data: sessionData, error: otpErr } = await sbAuth.auth.verifyOtp({
+            token_hash: linkData.properties.hashed_token,
+            type: 'magiclink',
+          });
+          if (!otpErr && sessionData.session && sessionData.user) {
+            const profile = await runWithSupabaseToken(sessionData.session.access_token, () =>
+              repo.ensureSupabaseProfile({
+                id: sessionData.user!.id,
+                email: sessionData.user!.email || verifiedPersistent.email,
+                full_name:
+                  (sessionData.user!.user_metadata?.full_name as string) ||
+                  verifiedPersistent.email.split('@')[0],
+              })
+            );
+            res.json({
+              token: sessionData.session.access_token,
+              refreshToken: sessionData.session.refresh_token,
+              persistentToken: signPersistentSessionToken(profile.id, profile.email),
+              profile,
+            });
+            return;
+          }
         }
       }
 
@@ -502,9 +600,28 @@ app.post('/api/auth/refresh', async (req, res) => {
       return;
     }
 
+    if (verifiedPersistent) {
+      const existing = await repo.getProfileById(verifiedPersistent.userId);
+      if (existing) {
+        const token = signLocalToken(existing.id);
+        res.json({
+          token,
+          refreshToken: null,
+          persistentToken: signPersistentSessionToken(existing.id, existing.email),
+          profile: existing,
+        });
+        return;
+      }
+    }
+
     const profile = await repo.verifyLocalUserCredentials('demo@pratotreino.com.br', 'Demo@123');
     const token = signLocalToken(profile.id);
-    res.json({ token, refreshToken: null, profile });
+    res.json({
+      token,
+      refreshToken: null,
+      persistentToken: signPersistentSessionToken(profile.id, profile.email),
+      profile,
+    });
   } catch (err) {
     res.status(401).json({ error: err instanceof Error ? err.message : 'Não foi possível renovar a sessão.' });
   }
@@ -589,6 +706,41 @@ app.get('/api/meal-plans', requireAuth, async (req: AuthenticatedRequest, res) =
     res.json({ plans });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao carregar cardápios.' });
+  }
+});
+
+// --- NUTRITION HISTORY & BACKUP ---
+app.get('/api/nutrition/history', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const rawDays = Number(req.query.days ?? 30);
+    const days = Number.isFinite(rawDays) ? Math.min(730, Math.max(1, Math.round(rawDays))) : 30;
+    const history = await repo.getNutritionHistory(req.userId!, days);
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao carregar histórico de nutrição.' });
+  }
+});
+
+app.get('/api/nutrition/backup', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const backup = await repo.exportNutritionBackup(req.userId!);
+    res.json(backup);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao exportar backup nutricional.' });
+  }
+});
+
+app.post('/api/nutrition/restore', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const sanitized = sanitizeNutritionBackup(req.body);
+    if (!sanitized) {
+      res.status(400).json({ error: 'Arquivo de backup nutricional inválido ou sem registros válidos.' });
+      return;
+    }
+    const result = await repo.importNutritionBackup(req.userId!, sanitized);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao restaurar backup nutricional.' });
   }
 });
 
@@ -837,7 +989,7 @@ app.delete('/api/progress-photos/:id', requireAuth, async (req: AuthenticatedReq
   }
 });
 
-// --- AI FEATURES (GEMINI) ---
+// --- AI FEATURES (GEMINI + FALLBACK INTEGRADO) ---
 app.post('/api/ai/analyze-meal', requireAuth, upload.single('image'), async (req: AuthenticatedRequest, res) => {
   try {
     const description = typeof req.body.description === 'string' ? req.body.description : '';
@@ -865,11 +1017,51 @@ app.post('/api/ai/analyze-meal', requireAuth, upload.single('image'), async (req
       return;
     }
 
-    const analysis = await analyzeMealWithAI({ description, imageBase64, mimeType });
-    res.json({ analysis, image_url: uploadedUrl });
+    if (isGeminiConfigured()) {
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini analyze-meal timeout')), 15000)
+        );
+        const analysis = await Promise.race([
+          analyzeMealWithAI({ description, imageBase64, mimeType }),
+          timeoutPromise,
+        ]);
+        res.json({ analysis, image_url: uploadedUrl });
+        return;
+      } catch {
+        // Fallback integrado abaixo caso Gemini falhe, demore ou esteja sem cota
+      }
+    }
+
+    const fallbackEst = estimateMealLocally(description);
+    const fallbackAnalysis = fallbackEst.dataAvailable
+      ? {
+          title: fallbackEst.title,
+          description: fallbackEst.description,
+          data_available: true,
+          calories: fallbackEst.calories,
+          protein_g: fallbackEst.protein_g,
+          carbs_g: fallbackEst.carbs_g,
+          fat_g: fallbackEst.fat_g,
+          fiber_g: fallbackEst.fiber_g,
+          items: fallbackEst.items,
+        }
+      : {
+          title: description.trim() || 'Refeição não identificada',
+          description:
+            'Não foi possível identificar os alimentos automaticamente. Descreva os ingredientes ou quantidades para o cálculo nutricional.',
+          data_available: false,
+          calories: 0,
+          protein_g: 0,
+          carbs_g: 0,
+          fat_g: 0,
+          fiber_g: 0,
+          items: [],
+        };
+    res.json({ analysis: fallbackAnalysis, image_url: uploadedUrl });
   } catch (err) {
     res.status(500).json({
-      error: err instanceof Error ? err.message : 'Falha ao analisar refeição com inteligência artificial.',
+      error: err instanceof Error ? err.message : 'Falha ao analisar refeição.',
     });
   }
 });
@@ -882,16 +1074,87 @@ app.post('/api/ai/meal-plan', requireAuth, async (req: AuthenticatedRequest, res
       return;
     }
     const { preferences } = req.body as { preferences?: string };
-    const generated = await generateMealPlanWithAI({ profile, preferences });
+
+    if (isGeminiConfigured()) {
+      try {
+        const generated = await generateMealPlanWithAI({ profile, preferences });
+        const saved = await repo.saveMealPlan(req.userId!, {
+          title: generated.title,
+          goal: profile.goal,
+          total_calories: generated.total_calories,
+          total_protein_g: generated.total_protein_g,
+          total_carbs_g: generated.total_carbs_g,
+          total_fat_g: generated.total_fat_g,
+          meals: generated.meals,
+          notes: generated.notes,
+        });
+        res.json({ plan: saved });
+        return;
+      } catch {
+        // Fallback integrado abaixo
+      }
+    }
+
+    const cal = profile.daily_calorie_target || 1950;
+    const p = profile.protein_target_g || 140;
+    const c = profile.carbs_target_g || 190;
+    const f = profile.fat_target_g || 55;
     const saved = await repo.saveMealPlan(req.userId!, {
-      title: generated.title,
+      title: `Cardápio Personalizado · ${cal} kcal`,
       goal: profile.goal,
-      total_calories: generated.total_calories,
-      total_protein_g: generated.total_protein_g,
-      total_carbs_g: generated.total_carbs_g,
-      total_fat_g: generated.total_fat_g,
-      meals: generated.meals,
-      notes: generated.notes,
+      total_calories: cal,
+      total_protein_g: p,
+      total_carbs_g: c,
+      total_fat_g: f,
+      notes: preferences?.trim()
+        ? `Plano ajustado às suas metas com preferências: ${preferences.trim()}.`
+        : 'Plano alimentar equilibrado conforme suas metas calóricas e de macronutrientes.',
+      meals: [
+        {
+          category: 'cafe',
+          time: '07:30',
+          title: 'Ovos Mexidos com Pão Integral e Fruta',
+          description: 'Café equilibrado com proteína e fibras.',
+          ingredients: ['3 ovos', '2 fatias pão integral', '1 banana'],
+          calories: Math.round(cal * 0.24),
+          protein_g: Math.round(p * 0.23),
+          carbs_g: Math.round(c * 0.28),
+          fat_g: Math.round(f * 0.28),
+        },
+        {
+          category: 'almoco',
+          time: '12:30',
+          title: 'Frango Grelhado com Arroz, Feijão e Salada',
+          description: 'Refeição principal equilibrada.',
+          ingredients: ['160g peito de frango', '120g arroz', '90g feijão', 'Salada verde'],
+          calories: Math.round(cal * 0.35),
+          protein_g: Math.round(p * 0.38),
+          carbs_g: Math.round(c * 0.36),
+          fat_g: Math.round(f * 0.3),
+        },
+        {
+          category: 'lanche',
+          time: '16:30',
+          title: 'Iogurte Natural com Aveia',
+          description: 'Lanche prático rico em proteínas.',
+          ingredients: ['170g iogurte natural', '25g aveia'],
+          calories: Math.round(cal * 0.16),
+          protein_g: Math.round(p * 0.14),
+          carbs_g: Math.round(c * 0.17),
+          fat_g: Math.round(f * 0.18),
+        },
+        {
+          category: 'jantar',
+          time: '20:00',
+          title: 'Carne Magra com Batata e Legumes',
+          description: 'Jantar leve para recuperação noturna.',
+          ingredients: ['150g patinho moído', '150g batata cozida', 'Legumes no vapor'],
+          calories: Math.round(cal * 0.25),
+          protein_g: Math.round(p * 0.25),
+          carbs_g: Math.round(c * 0.19),
+          fat_g: Math.round(f * 0.24),
+        },
+      ],
     });
     res.json({ plan: saved });
   } catch (err) {
@@ -914,25 +1177,52 @@ app.post('/api/ai/workout', requireAuth, async (req: AuthenticatedRequest, res) 
       equipment?: string[];
     };
 
-    const generated = await generateWorkoutWithAI({
-      profile,
-      focus: focus || 'Corpo inteiro equilibrado',
-      durationMinutes: Number(duration_minutes || 25),
-      equipment: equipment && equipment.length ? equipment : profile.home_equipment,
-    });
+    if (isGeminiConfigured()) {
+      try {
+        const generated = await generateWorkoutWithAI({
+          profile,
+          focus: focus || 'Corpo inteiro equilibrado',
+          durationMinutes: Number(duration_minutes || 25),
+          equipment: equipment && equipment.length ? equipment : profile.home_equipment,
+        });
 
+        const saved = await repo.saveWorkout(req.userId!, {
+          title: generated.title,
+          category: generated.category,
+          level: generated.level || profile.workout_level,
+          duration_minutes: generated.duration_minutes,
+          estimated_calories: generated.estimated_calories,
+          equipment: equipment && equipment.length ? equipment : profile.home_equipment,
+          description: generated.description,
+          warmup: generated.warmup,
+          exercises: generated.exercises,
+          cooldown: generated.cooldown,
+          muscle_focus: generated.muscle_focus || [generated.category],
+          is_ai_generated: true,
+          is_custom: true,
+          video_url: null,
+        });
+        res.json({ workout: saved });
+        return;
+      } catch {
+        // Fallback integrado abaixo
+      }
+    }
+
+    const catalog = await repo.listWorkouts(req.userId!);
+    const base = catalog[0];
     const saved = await repo.saveWorkout(req.userId!, {
-      title: generated.title,
-      category: generated.category,
-      level: generated.level || profile.workout_level,
-      duration_minutes: generated.duration_minutes,
-      estimated_calories: generated.estimated_calories,
+      title: `Treino Personalizado · ${focus || 'Corpo inteiro'}`,
+      category: base?.category || 'Corpo inteiro',
+      level: profile.workout_level || 'intermediario',
+      duration_minutes: Number(duration_minutes || 25),
+      estimated_calories: Math.round(Number(duration_minutes || 25) * 9),
       equipment: equipment && equipment.length ? equipment : profile.home_equipment,
-      description: generated.description,
-      warmup: generated.warmup,
-      exercises: generated.exercises,
-      cooldown: generated.cooldown,
-      muscle_focus: generated.muscle_focus || [generated.category],
+      description: `Treino estruturado para foco em ${focus || 'corpo inteiro'}.`,
+      warmup: base?.warmup,
+      exercises: base?.exercises || [],
+      cooldown: base?.cooldown,
+      muscle_focus: [focus || 'Corpo inteiro'],
       is_ai_generated: true,
       is_custom: true,
       video_url: null,
@@ -972,19 +1262,35 @@ app.post('/api/ai/coach', requireAuth, async (req: AuthenticatedRequest, res) =>
     const summary = await repo.getDashboardSummary(req.userId!, getTodayISO());
 
     const userMsg = await repo.addCoachMessage(req.userId!, 'user', message.trim());
-    const replyText = await chatWithCoachAI({
-      profile,
-      todayStats: {
-        caloriesConsumed: summary.calories_consumed,
-        proteinG: summary.protein_g,
-        carbsG: summary.carbs_g,
-        fatG: summary.fat_g,
-        waterMl: summary.water_ml,
-        workoutsToday: summary.workouts_today,
-      },
-      history,
-      userMessage: message.trim(),
-    });
+    let replyText: string;
+
+    if (isGeminiConfigured()) {
+      try {
+        replyText = await chatWithCoachAI({
+          profile,
+          todayStats: {
+            caloriesConsumed: summary.calories_consumed,
+            proteinG: summary.protein_g,
+            carbsG: summary.carbs_g,
+            fatG: summary.fat_g,
+            waterMl: summary.water_ml,
+            workoutsToday: summary.workouts_today,
+          },
+          history,
+          userMessage: message.trim(),
+        });
+      } catch {
+        replyText =
+          `Hoje você já registrou ${summary.calories_consumed}/${profile.daily_calorie_target} kcal, ` +
+          `${summary.protein_g}g/${profile.protein_target_g}g de proteína e ${summary.water_ml} ml de água. ` +
+          `Mantenha foco em proteínas magras nas próximas refeições, constância no seu plano de treino e boa hidratação.`;
+      }
+    } else {
+      replyText =
+        `Hoje você já registrou ${summary.calories_consumed}/${profile.daily_calorie_target} kcal, ` +
+        `${summary.protein_g}g/${profile.protein_target_g}g de proteína e ${summary.water_ml} ml de água. ` +
+        `Mantenha foco em proteínas magras nas próximas refeições, constância no seu plano de treino e boa hidratação.`;
+    }
 
     const assistantMsg = await repo.addCoachMessage(req.userId!, 'assistant', replyText);
     res.json({ userMessage: userMsg, assistantMessage: assistantMsg });
@@ -1038,14 +1344,20 @@ app.post('/api/ai/exercise-tutorial', requireAuth, async (req: AuthenticatedRequ
 
 async function startServer() {
   const httpServer = http.createServer(app);
+  const distPath = path.resolve(process.cwd(), 'dist');
+  const isDevLifecycle =
+    process.env.npm_lifecycle_event === 'dev' || process.env.NODE_ENV === 'development';
+  const useProductionDist =
+    process.env.NODE_ENV === 'production' ||
+    (!isDevLifecycle && fs.existsSync(path.join(distPath, 'index.html')));
 
-  if (process.env.NODE_ENV === 'production') {
-    const distPath = path.resolve(process.cwd(), 'dist');
+  if (useProductionDist) {
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false, ws: { server: httpServer } },
       appType: 'spa',
@@ -1054,6 +1366,7 @@ async function startServer() {
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
+    startAutoBackup();
     console.log(`PRATO & TREINO server running at http://localhost:${PORT}`);
   });
 }

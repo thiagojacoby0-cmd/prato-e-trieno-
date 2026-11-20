@@ -1,5 +1,5 @@
-import { WorkoutProgram } from '../types';
-import { pickExercise } from './exerciseLibrary';
+import type { WorkoutProgram } from '../types/index.ts';
+import { pickExercise } from './exerciseLibrary.ts';
 
 export const DEFAULT_WORKOUT_CATALOG: WorkoutProgram[] = [
   // 1. CORPO INTEIRO

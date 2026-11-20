@@ -214,8 +214,8 @@ export function ThreeExerciseDemo({
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#090E0B');
-    scene.fog = new THREE.FogExp2('#090E0B', 0.085);
+    scene.background = new THREE.Color('#EFF7F3');
+    scene.fog = new THREE.FogExp2('#EFF7F3', 0.06);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envScene = new RoomEnvironment();
@@ -241,7 +241,7 @@ export function ThreeExerciseDemo({
     controls.addEventListener('start', cancelPresetOnUserDrag);
 
     // Rig de Iluminação 3-Point Studio Atlética
-    const hemiLight = new THREE.HemisphereLight('#E6F4EC', '#121B15', 0.95);
+    const hemiLight = new THREE.HemisphereLight('#E6FFFC', '#081719', 0.95);
     scene.add(hemiLight);
 
     const keyLight = new THREE.DirectionalLight('#FFF6EA', 2.45);
@@ -258,18 +258,18 @@ export function ThreeExerciseDemo({
     keyLight.shadow.camera.bottom = -2.4;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight('#22C55E', 1.55);
+    const rimLight = new THREE.DirectionalLight('#00D4C4', 1.55);
     rimLight.position.set(-2.6, 2.2, -2.2);
     scene.add(rimLight);
 
-    const fillLight = new THREE.DirectionalLight('#A3D9B8', 0.65);
+    const fillLight = new THREE.DirectionalLight('#8CECE3', 0.65);
     fillLight.position.set(-1.5, 1.4, 2.4);
     scene.add(fillLight);
 
     // Piso Estúdio & Anéis
     const floorMesh = new THREE.Mesh(
       new THREE.CircleGeometry(6, 48),
-      new THREE.MeshStandardMaterial({ color: '#0E1511', roughness: 0.78, metalness: 0.08 })
+      new THREE.MeshStandardMaterial({ color: '#E2EFE9', roughness: 0.85, metalness: 0.04 })
     );
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.receiveShadow = true;
@@ -278,9 +278,9 @@ export function ThreeExerciseDemo({
     const ringMesh = new THREE.Mesh(
       new THREE.RingGeometry(1.12, 1.16, 64),
       new THREE.MeshBasicMaterial({
-        color: '#22C55E',
+        color: '#12BFA3',
         transparent: true,
-        opacity: 0.36,
+        opacity: 0.45,
         side: THREE.DoubleSide,
       })
     );
@@ -291,9 +291,9 @@ export function ThreeExerciseDemo({
     const outerRing = new THREE.Mesh(
       new THREE.RingGeometry(1.75, 1.77, 64),
       new THREE.MeshBasicMaterial({
-        color: '#FFFFFF',
+        color: '#0F2A2A',
         transparent: true,
-        opacity: 0.07,
+        opacity: 0.09,
         side: THREE.DoubleSide,
       })
     );
@@ -318,14 +318,14 @@ export function ThreeExerciseDemo({
     const matGroup = new THREE.Group();
     const matBody = new THREE.Mesh(
       new THREE.BoxGeometry(2.15, 0.024, 0.86),
-      new THREE.MeshStandardMaterial({ color: '#14241B', roughness: 0.86, metalness: 0.05 })
+      new THREE.MeshStandardMaterial({ color: '#0D2629', roughness: 0.86, metalness: 0.05 })
     );
     matBody.position.y = 0.012;
     matBody.receiveShadow = true;
     matGroup.add(matBody);
     const matStripe = new THREE.Mesh(
       new THREE.BoxGeometry(2.1, 0.004, 0.04),
-      new THREE.MeshStandardMaterial({ color: '#22C55E', emissive: '#14532D', emissiveIntensity: 0.25, roughness: 0.5 })
+      new THREE.MeshStandardMaterial({ color: '#00D4C4', emissive: '#008F84', emissiveIntensity: 0.25, roughness: 0.5 })
     );
     matStripe.position.set(0, 0.025, 0.38);
     matGroup.add(matStripe);
@@ -336,7 +336,7 @@ export function ThreeExerciseDemo({
     const benchGroup = new THREE.Group();
     const benchPad = new THREE.Mesh(
       new THREE.BoxGeometry(0.52, 0.07, 0.56),
-      new THREE.MeshStandardMaterial({ color: '#1F2B24', roughness: 0.58, metalness: 0.18 })
+      new THREE.MeshStandardMaterial({ color: '#142C2F', roughness: 0.58, metalness: 0.18 })
     );
     benchPad.position.set(0, 0.455, 0);
     benchPad.castShadow = true;
@@ -344,11 +344,11 @@ export function ThreeExerciseDemo({
     benchGroup.add(benchPad);
     const benchTrim = new THREE.Mesh(
       new THREE.BoxGeometry(0.53, 0.014, 0.57),
-      new THREE.MeshStandardMaterial({ color: '#22C55E', roughness: 0.45, metalness: 0.2 })
+      new THREE.MeshStandardMaterial({ color: '#00D4C4', roughness: 0.45, metalness: 0.2 })
     );
     benchTrim.position.set(0, 0.425, 0);
     benchGroup.add(benchTrim);
-    const benchLegMat = new THREE.MeshStandardMaterial({ color: '#6E7F76', roughness: 0.32, metalness: 0.72 });
+    const benchLegMat = new THREE.MeshStandardMaterial({ color: '#6E8584', roughness: 0.32, metalness: 0.72 });
     [
       [-0.21, 0.215, -0.22],
       [-0.21, 0.215, 0.22],
@@ -367,15 +367,15 @@ export function ThreeExerciseDemo({
       const g = new THREE.Group();
       const bar = new THREE.Mesh(
         new THREE.CylinderGeometry(0.015, 0.015, 0.24, 12),
-        new THREE.MeshStandardMaterial({ color: '#C8D3CD', metalness: 0.85, roughness: 0.22 })
+        new THREE.MeshStandardMaterial({ color: '#C8D8D6', metalness: 0.85, roughness: 0.22 })
       );
       bar.rotation.z = Math.PI / 2;
       g.add(bar);
-      const plateMat = new THREE.MeshStandardMaterial({ color: '#18211B', roughness: 0.45, metalness: 0.35 });
+      const plateMat = new THREE.MeshStandardMaterial({ color: '#122426', roughness: 0.45, metalness: 0.35 });
       const accentMat = new THREE.MeshStandardMaterial({
-        color: '#22C55E',
-        emissive: '#166534',
-        emissiveIntensity: 0.3,
+        color: '#FDA63F',
+        emissive: '#B86910',
+        emissiveIntensity: 0.32,
         roughness: 0.38,
       });
       [-0.095, 0.095].forEach((xOff) => {
@@ -399,10 +399,10 @@ export function ThreeExerciseDemo({
 
     // --- MATERIAIS HUMANOS NATURAIS + ROUPA ESPORTIVA DE TREINO ---
     const skinBaseColor = new THREE.Color('#DDA885');
-    const skinActiveColor = new THREE.Color('#B5CEA3');
-    const fabricActiveColor = new THREE.Color('#2B5D3F');
-    const shirtRestColor = new THREE.Color('#1E2722');
-    const shortsRestColor = new THREE.Color('#151B18');
+    const skinActiveColor = new THREE.Color('#9FE3DE');
+    const fabricActiveColor = new THREE.Color('#166661');
+    const shirtRestColor = new THREE.Color('#12282B');
+    const shortsRestColor = new THREE.Color('#0B1B1D');
 
     const skinMat = new THREE.MeshPhysicalMaterial({
       color: '#DDA885',
@@ -418,30 +418,30 @@ export function ThreeExerciseDemo({
     const lipMat = new THREE.MeshStandardMaterial({ color: '#BE7E6B', roughness: 0.54, metalness: 0.0 });
 
     const shirtBaseMat = new THREE.MeshPhysicalMaterial({
-      color: '#1E2722',
+      color: '#12282B',
       roughness: 0.78,
       metalness: 0.02,
       sheen: 0.45,
-      sheenColor: new THREE.Color('#3F5247'),
+      sheenColor: new THREE.Color('#2B585E'),
       sheenRoughness: 0.68,
     });
     const shortsBaseMat = new THREE.MeshPhysicalMaterial({
-      color: '#151B18',
+      color: '#0B1B1D',
       roughness: 0.82,
       metalness: 0.02,
       sheen: 0.35,
-      sheenColor: new THREE.Color('#2E3A33'),
+      sheenColor: new THREE.Color('#1D3D41'),
     });
     const trimMat = new THREE.MeshStandardMaterial({
-      color: '#22C55E',
-      emissive: '#16A34A',
+      color: '#00D4C4',
+      emissive: '#00B5A6',
       emissiveIntensity: 0.28,
       roughness: 0.42,
       metalness: 0.15,
     });
-    const sockMat = new THREE.MeshStandardMaterial({ color: '#E8EEEA', roughness: 0.86, metalness: 0.0 });
-    const shoeUpperMat = new THREE.MeshStandardMaterial({ color: '#181F1B', roughness: 0.62, metalness: 0.08 });
-    const shoeMidsoleMat = new THREE.MeshStandardMaterial({ color: '#E4EAE6', roughness: 0.48, metalness: 0.04 });
+    const sockMat = new THREE.MeshStandardMaterial({ color: '#E8F2F1', roughness: 0.86, metalness: 0.0 });
+    const shoeUpperMat = new THREE.MeshStandardMaterial({ color: '#102224', roughness: 0.62, metalness: 0.08 });
+    const shoeMidsoleMat = new THREE.MeshStandardMaterial({ color: '#E4F0EF', roughness: 0.48, metalness: 0.04 });
 
     const makeSkinZoneMaterial = () =>
       new THREE.MeshPhysicalMaterial({
@@ -462,14 +462,14 @@ export function ThreeExerciseDemo({
         roughness: 0.78,
         metalness: 0.02,
         sheen: 0.4,
-        sheenColor: new THREE.Color('#3A4D42'),
+        sheenColor: new THREE.Color('#285257'),
       });
 
-    const chestMat = makeFabricZoneMaterial('#1E2722');
-    const backMat = makeFabricZoneMaterial('#1E2722');
-    const absMat = makeFabricZoneMaterial('#1E2722');
-    const shouldersMat = makeFabricZoneMaterial('#1E2722');
-    const gluteMat = makeFabricZoneMaterial('#151B18');
+    const chestMat = makeFabricZoneMaterial('#12282B');
+    const backMat = makeFabricZoneMaterial('#12282B');
+    const absMat = makeFabricZoneMaterial('#12282B');
+    const shouldersMat = makeFabricZoneMaterial('#12282B');
+    const gluteMat = makeFabricZoneMaterial('#0B1B1D');
     const legsMat = makeSkinZoneMaterial();
     const calvesMat = makeSkinZoneMaterial();
     const armsMat = makeSkinZoneMaterial();
@@ -864,7 +864,7 @@ export function ThreeExerciseDemo({
       const setFabricHighlight = (mat: THREE.MeshPhysicalMaterial, restColor: THREE.Color, active: boolean) => {
         if (active) {
           mat.color.copy(fabricActiveColor);
-          mat.emissive.set('#22C55E');
+          mat.emissive.set('#00D4C4');
           mat.emissiveIntensity = pulse + 0.08;
         } else {
           mat.color.copy(restColor);
@@ -875,7 +875,7 @@ export function ThreeExerciseDemo({
       const setSkinHighlight = (mat: THREE.MeshPhysicalMaterial, active: boolean) => {
         if (active) {
           mat.color.copy(skinActiveColor);
-          mat.emissive.set('#16A34A');
+          mat.emissive.set('#00B5A6');
           mat.emissiveIntensity = pulse;
         } else {
           mat.color.copy(skinBaseColor);
@@ -1222,55 +1222,63 @@ export function ThreeExerciseDemo({
 
   if (webglFallback) {
     return (
-      <div className={`flex ${heightClass} flex-col items-center justify-center rounded-xl border border-white/10 bg-[#0A0F0C] p-6 text-center`}>
-        <p className="text-sm font-semibold text-[#F4F7F5]">{exerciseName}</p>
-        <p className="mt-2 max-w-md text-xs text-[#9AA8A0]">{spec.preparation}</p>
+      <div className={`flex ${heightClass} flex-col items-center justify-center rounded-2xl border border-[#DCECE6] bg-[#EFF7F3] p-6 text-center`}>
+        <p className="text-sm font-bold text-[#0F2A2A]">{exerciseName}</p>
+        <p className="mt-2 max-w-md text-xs text-[#4B6B68]">{spec.preparation}</p>
       </div>
     );
   }
 
+  const isFullHeight = heightClass === 'h-full';
+
   return (
-    <div className="space-y-2">
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#090E0B]">
+    <div className={isFullHeight ? 'flex h-full min-h-0 flex-col' : 'space-y-2'}>
+      <div
+        className={
+          isFullHeight
+            ? 'relative flex h-full min-h-0 flex-col overflow-hidden bg-[#EFF7F3]'
+            : 'relative overflow-hidden rounded-2xl border border-[#DCECE6] bg-[#EFF7F3] shadow-sm'
+        }
+      >
         {/* Top HUD (sem backdrop-blur sobre WebGL) */}
         <div className="pointer-events-none absolute left-3 right-3 top-3 z-10 flex items-center justify-between gap-2">
-          <div className="rounded-lg bg-[#090E0B]/88 px-3 py-1.5">
-            <p className="text-[10px] font-semibold tracking-wider text-[#22C55E] uppercase">
+          <div className="rounded-xl border border-[#DCECE6] bg-white/92 px-3 py-1.5 shadow-sm">
+            <p className="text-[10px] font-semibold tracking-wider text-[#0C947E] uppercase">
               Modelo 3D Anatômico · {muscleGroup}
             </p>
-            <p className="text-xs font-semibold text-[#F4F7F5]">{exerciseName}</p>
+            <p className="text-xs font-bold text-[#0F2A2A]">{exerciseName}</p>
           </div>
-          <div className="rounded-lg bg-[#090E0B]/88 px-2.5 py-1 text-right font-mono text-[11px] text-[#C2CCC6] tabular-nums">
+          <div className="rounded-xl border border-[#DCECE6] bg-white/92 px-2.5 py-1 text-right font-mono text-[11px] font-semibold text-[#2E4A48] shadow-sm tabular-nums">
             <div>REP #{repCount}</div>
-            <div className="text-[10px] text-[#22C55E]">FASE {phaseIdx + 1}/3</div>
+            <div className="text-[10px] text-[#0C947E]">FASE {phaseIdx + 1}/3</div>
           </div>
         </div>
 
         {/* Viewport WebGL isolado */}
-        <div ref={mountRef} className={`w-full cursor-grab active:cursor-grabbing ${heightClass}`} />
+        <div ref={mountRef} className={`w-full cursor-grab active:cursor-grabbing ${isFullHeight ? 'min-h-0 flex-1' : heightClass}`} />
 
         {/* Legenda biomecânica ativa */}
         <div className="pointer-events-none absolute bottom-12 left-3 right-3 z-10 flex items-center justify-between gap-2">
-          <div className="rounded-lg bg-[#090E0B]/90 px-3 py-1 text-xs text-[#F4F7F5]">
-            <span className="mr-2 font-mono text-[11px] font-semibold text-[#22C55E]">
+          <div className="rounded-xl border border-[#DCECE6] bg-white/92 px-3 py-1 text-xs text-[#0F2A2A] shadow-sm">
+            <span className="font-mono text-[11px] font-semibold text-[#0C947E]">
               {spec.phase_labels[phaseIdx] || spec.phase_labels[0]}
             </span>
           </div>
           {activeZoneSet.size > 0 && (
-            <div className="hidden rounded-lg bg-[#090E0B]/88 px-2.5 py-1 text-[10px] text-[#9AA8A0] sm:block">
-              Músculos ativos em verde
+            <div className="hidden rounded-xl border border-[#DCECE6] bg-white/92 px-2.5 py-1 text-[10px] font-medium text-[#4B6B68] shadow-sm sm:block">
+              Músculos ativos em turquesa
             </div>
           )}
         </div>
 
         {/* Dock de controles consolidado abaixo do viewport */}
         {showControls && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/8 bg-[#0E1410] px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E1EEE9] bg-white px-3 py-2">
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={handleTogglePlay}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#22C55E] px-2.5 py-1.5 text-xs font-semibold text-[#06120A] transition-colors hover:bg-[#16A34A]"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#12BFA3] px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0EA88F]"
               >
                 {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                 {playing ? 'Pausar' : 'Reproduzir'}
@@ -1279,29 +1287,29 @@ export function ThreeExerciseDemo({
               <button
                 type="button"
                 onClick={() => setSpeed((s) => (s === 1 ? 0.5 : 1))}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 font-mono text-xs text-[#C2CCC6] hover:bg-white/5"
+                className="inline-flex items-center gap-1 rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-2.5 py-1.5 font-mono text-xs font-medium text-[#2E4A48] hover:bg-[#E7F4EF]"
               >
-                <Gauge className="h-3.5 w-3.5 text-[#22C55E]" />
+                <Gauge className="h-3.5 w-3.5 text-[#0C947E]" />
                 {speed === 0.5 ? '0.5x' : '1.0x'}
               </button>
 
               <button
                 type="button"
                 onClick={handleCycleCamera}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-[#C2CCC6] hover:bg-white/5"
+                className="inline-flex items-center gap-1 rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-2.5 py-1.5 text-xs font-medium text-[#2E4A48] hover:bg-[#E7F4EF]"
                 title="Arraste no 3D para girar livremente"
               >
-                <Camera className="h-3.5 w-3.5 text-[#22C55E]" />
+                <Camera className="h-3.5 w-3.5 text-[#0C947E]" />
                 {cameraPreset === 'studio' ? '3/4' : cameraPreset === 'side' ? 'Lateral' : 'Frontal'}
               </button>
 
               <button
                 type="button"
                 onClick={() => setVoiceActive((v) => !v)}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${
+                className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-medium ${
                   voiceActive
-                    ? 'border-[#22C55E]/50 bg-[#22C55E]/15 text-[#22C55E]'
-                    : 'border-white/10 text-[#C2CCC6] hover:bg-white/5'
+                    ? 'border-[#12BFA3] bg-[#E3F7F2] text-[#0C947E]'
+                    : 'border-[#D3E5DF] bg-[#F4FAF7] text-[#2E4A48] hover:bg-[#E7F4EF]'
                 }`}
               >
                 {voiceActive ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
@@ -1313,9 +1321,9 @@ export function ThreeExerciseDemo({
               type="button"
               onClick={handleDownloadVideo}
               disabled={exporting}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium text-[#C2CCC6] hover:bg-white/5 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-2.5 py-1.5 text-xs font-medium text-[#2E4A48] hover:bg-[#E7F4EF] disabled:opacity-50"
             >
-              <Download className="h-3.5 w-3.5 text-[#22C55E]" />
+              <Download className="h-3.5 w-3.5 text-[#0C947E]" />
               {exporting ? 'Gravando...' : 'Baixar vídeo'}
             </button>
           </div>
@@ -1323,7 +1331,7 @@ export function ThreeExerciseDemo({
       </div>
 
       {exportNote && (
-        <p className="rounded-lg border border-[#22C55E]/30 bg-[#22C55E]/10 px-3 py-1.5 text-xs text-[#22C55E]">
+        <p className="rounded-xl border border-[#BCE6DC] bg-[#E3F7F2] px-3 py-1.5 text-xs font-medium text-[#0B7C6A]">
           {exportNote}
         </p>
       )}

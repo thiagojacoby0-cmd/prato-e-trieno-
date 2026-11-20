@@ -3,9 +3,13 @@ import { AppConfigInfo, UserProfile } from '../types';
 import {
   apiRequest,
   clearStoredSession,
+  getCachedProfile,
   getStoredToken,
+  markHasAccount,
   setAuthExpiredListener,
+  setCachedProfile,
   setStoredAuthMode,
+  setStoredPersistentToken,
   setStoredRefreshToken,
   setStoredToken,
 } from '../services/apiClient';
@@ -16,7 +20,12 @@ interface AuthContextValue {
   initError: string | null;
   configInfo: AppConfigInfo | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (fullName: string, email: string, password: string) => Promise<void>;
+  register: (
+    fullName: string,
+    email: string,
+    password: string,
+    extraProfile?: Partial<UserProfile>
+  ) => Promise<void>;
   sendEmailOtp: (email: string) => Promise<void>;
   verifyEmailOtp: (email: string, code: string) => Promise<void>;
   enterPersonalMode: () => Promise<void>;
@@ -28,14 +37,31 @@ interface AuthContextValue {
 interface AuthSessionResponse {
   token: string;
   refreshToken?: string | null;
+  persistentToken?: string | null;
   profile: UserProfile;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function persistAuthSession(data: AuthSessionResponse, mode: 'personal' | 'credentials'): void {
+  setStoredToken(data.token);
+  setStoredRefreshToken(data.refreshToken || null);
+  if (data.persistentToken) {
+    setStoredPersistentToken(data.persistentToken);
+  }
+  setStoredAuthMode(mode);
+  setCachedProfile(data.profile);
+  if (data.profile.onboarding_completed || mode === 'credentials') {
+    markHasAccount(data.profile.email);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialToken = typeof window !== 'undefined' ? getStoredToken() : null;
+  const initialCachedProfile = typeof window !== 'undefined' && initialToken ? getCachedProfile() : null;
+
+  const [profile, setProfile] = useState<UserProfile | null>(initialCachedProfile);
+  const [loading, setLoading] = useState(!initialCachedProfile);
   const [initError, setInitError] = useState<string | null>(null);
   const [configInfo, setConfigInfo] = useState<AppConfigInfo | null>(null);
 
@@ -51,13 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await apiRequest<AuthSessionResponse>('/api/auth/personal', {
       method: 'POST',
     });
-    setStoredToken(data.token);
-    setStoredRefreshToken(data.refreshToken || null);
-    setStoredAuthMode('personal');
+    persistAuthSession(data, 'personal');
     setProfile(data.profile);
   }, []);
 
   const refreshProfile = useCallback(async () => {
+    const cached = getStoredToken() ? getCachedProfile() : null;
     try {
       const cfg = await apiRequest<AppConfigInfo>('/api/health');
       setConfigInfo(cfg);
@@ -66,10 +91,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token) {
         try {
           const data = await apiRequest<{ profile: UserProfile }>('/api/auth/me');
+          setCachedProfile(data.profile);
+          if (data.profile.onboarding_completed) {
+            markHasAccount(data.profile.email);
+          }
           setProfile(data.profile);
           setLoading(false);
           return;
-        } catch {
+        } catch (err) {
+          const msg = err instanceof Error ? err.message.toLowerCase() : '';
+          const isAuthRejection =
+            msg.includes('sessão') ||
+            msg.includes('token') ||
+            msg.includes('autenticada') ||
+            msg.includes('401') ||
+            msg.includes('perfil não encontrado');
+
+          if (!isAuthRejection && cached) {
+            setProfile(cached);
+            setLoading(false);
+            return;
+          }
           clearStoredSession();
         }
       }
@@ -81,13 +123,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         } catch (err) {
           setInitError(err instanceof Error ? err.message : null);
-          setProfile(null);
+          setProfile(cached);
         }
       } else {
         setProfile(null);
       }
     } catch {
-      setProfile(null);
+      if (cached) {
+        setProfile(cached);
+      } else {
+        setProfile(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -102,20 +148,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    setStoredToken(data.token);
-    setStoredRefreshToken(data.refreshToken || null);
-    setStoredAuthMode('credentials');
+    persistAuthSession(data, 'credentials');
     setProfile(data.profile);
   };
 
-  const register = async (fullName: string, email: string, password: string) => {
+  const register = async (
+    fullName: string,
+    email: string,
+    password: string,
+    extraProfile?: Partial<UserProfile>
+  ) => {
     const data = await apiRequest<AuthSessionResponse>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ full_name: fullName, email, password }),
     });
-    setStoredToken(data.token);
-    setStoredRefreshToken(data.refreshToken || null);
-    setStoredAuthMode('credentials');
+    persistAuthSession(data, 'credentials');
+    if (extraProfile && Object.keys(extraProfile).length > 0) {
+      const updated = await apiRequest<{ profile: UserProfile }>('/api/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          full_name: fullName,
+          ...extraProfile,
+        }),
+      });
+      setCachedProfile(updated.profile);
+      markHasAccount(updated.profile.email);
+      setProfile(updated.profile);
+      return;
+    }
     setProfile(data.profile);
   };
 
@@ -131,9 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ email, code }),
     });
-    setStoredToken(data.token);
-    setStoredRefreshToken(data.refreshToken || null);
-    setStoredAuthMode('credentials');
+    persistAuthSession(data, 'credentials');
     setProfile(data.profile);
   };
 
@@ -147,6 +205,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
+    setCachedProfile(data.profile);
+    if (data.profile.onboarding_completed) {
+      markHasAccount(data.profile.email);
+    }
     setProfile(data.profile);
     return data.profile;
   };

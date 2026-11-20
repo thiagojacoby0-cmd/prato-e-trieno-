@@ -1,5 +1,5 @@
-import type { ExerciseTutorialSpec, PoseJoint2D, SkeletonPose2D, TutorialArchetype } from '../types';
-import { EXERCISE_LIBRARY, inferArchetypeFromName } from '../database/exerciseLibrary';
+import type { ExerciseTutorialSpec, PoseJoint2D, SkeletonPose2D, TutorialArchetype } from '../types/index.ts';
+import { EXERCISE_LIBRARY, inferArchetypeFromName } from '../database/exerciseLibrary.ts';
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -94,6 +94,10 @@ const PHASE_PRESETS: Partial<
   renegade_row: { tempo_seconds: 3.4, phase_labels: ['Flexão controlada', 'Remada unilateral estável', 'Quadril sem girar'], breathing: 'Expire na subida e em cada puxada.' },
   arm_circles: { tempo_seconds: 2.4, phase_labels: ['Postura aberta', 'Círculos amplos à frente', 'Inversão suave para trás'], breathing: 'Respiração profunda e contínua.' },
   torso_twist: { tempo_seconds: 2.4, phase_labels: ['Base firme', 'Rotação torácica fluida', 'Troca lateral suave'], breathing: 'Respiração livre e solta.' },
+  knee_circles: { tempo_seconds: 2.2, phase_labels: ['Pés juntos e joelhos flexionados', 'Giro circular suave', 'Inversão controlada'], breathing: 'Respiração calma mantendo a coluna neutra.' },
+  bird_dog: { tempo_seconds: 3.0, phase_labels: ['Quatro apoios firmes', 'Extensão cruzada braço e perna', 'Retorno alternado controlado'], breathing: 'Expire ao estender braço e perna mantendo o abdômen travado.' },
+  box_pushup: { tempo_seconds: 2.5, phase_labels: ['Quatro apoios sobre os joelhos', 'Descida com cotovelos em 45°', 'Empurrão firme estendendo braços'], breathing: 'Inspire descendo o peito e expire empurrando o solo.' },
+  pigeon_pose: { tempo_seconds: 4.0, phase_labels: ['Perna frontal flexionada à frente', 'Perna traseira estendida', 'Relaxamento profundo de quadril'], breathing: 'Inspire fundo e solte o ar relaxando glúteo e quadril.' },
   cat_camel: { tempo_seconds: 3.6, phase_labels: ['Quatro apoios neutro', 'Arqueamento Gato', 'Extensão Camelo'], breathing: 'Expire arredondando e inspire abrindo o peito.' },
   child_pose: { tempo_seconds: 4.0, phase_labels: ['Sentado nos calcanhares', 'Alongamento longo à frente', 'Relaxamento lombar'], breathing: 'Inspire expandindo as costelas e solte todo o ar.' },
   cobra_stretch: { tempo_seconds: 3.6, phase_labels: ['Quadril relaxado no chão', 'Abertura suave do peito', 'Alongamento abdominal'], breathing: 'Respiração calma e profunda.' },

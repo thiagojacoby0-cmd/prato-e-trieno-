@@ -165,6 +165,21 @@ function solveTwoBoneIK(
 }
 
 /**
+ * Estica o alvo do tornozelo apenas no eixo X até atingir o comprimento completo da perna
+ * (THIGH_LEN + SHIN_LEN + 0.012), preservando altura (Y) e largura (Z).
+ */
+function stretchAnkleToFullLeg(hip: THREE.Vector3, target: THREE.Vector3): void {
+  const fullLen = THIGH_LEN + SHIN_LEN + 0.012;
+  const dy = target.y - hip.y;
+  const dz = target.z - hip.z;
+  const remSq = fullLen * fullLen - dy * dy - dz * dz;
+  if (remSq > 0) {
+    const sign = target.x >= hip.x ? 1 : -1;
+    target.x = hip.x + sign * Math.sqrt(remSq);
+  }
+}
+
+/**
  * Constrói a base ortonormal direita (det = +1) do tronco a partir de `up` e `forwardDesired`:
  * +X = esquerda do atleta, +Y = cabeça/cima do tronco, +Z = frente (peito/abdômen).
  */
@@ -249,12 +264,13 @@ function buildStandingPose(
   }
 ) {
   state.facingAxis = 'z';
+  const standingLift = 0.03 * Math.max(0, Math.min(1, (opts.pelvisY - 0.62) / 0.2));
   const pitch = opts.spinePitchRad ?? 0;
   const roll = opts.spineRollRad ?? 0;
   _tmpC.set(Math.sin(roll), Math.cos(pitch) * Math.cos(roll), Math.sin(pitch)).normalize();
   _tmpA.set(0, -Math.sin(pitch), Math.cos(pitch)).normalize();
 
-  _tmpB.set(opts.pelvisX ?? 0, opts.pelvisY, opts.pelvisZ);
+  _tmpB.set(opts.pelvisX ?? 0, opts.pelvisY + standingLift, opts.pelvisZ);
   computeTorsoAnchors(state, _tmpB, _tmpC, _tmpA, opts.torsoYawRad ?? 0);
 
   // Pernas com IK
@@ -267,11 +283,11 @@ function buildStandingPose(
   solveTwoBoneIK(state.hipR, ankleTargetR, THIGH_LEN, SHIN_LEN, kneePoleR, state.kneeR, state.ankleR);
 
   // Braços com IK
-  const handTargetL = _tmpA.set(...opts.handL);
+  const handTargetL = _tmpA.set(opts.handL[0], opts.handL[1] + standingLift, opts.handL[2]);
   const elbowPoleL = _tmpPole.set(...(opts.elbowPoleL ?? [0.5, -0.2, -0.8]));
   solveTwoBoneIK(state.shoulderL, handTargetL, UPPER_ARM_LEN, FOREARM_LEN, elbowPoleL, state.elbowL, state.wristL);
 
-  const handTargetR = _tmpA.set(...opts.handR);
+  const handTargetR = _tmpA.set(opts.handR[0], opts.handR[1] + standingLift, opts.handR[2]);
   const elbowPoleR = _tmpPole.set(...(opts.elbowPoleR ?? [-0.5, -0.2, -0.8]));
   solveTwoBoneIK(state.shoulderR, handTargetR, UPPER_ARM_LEN, FOREARM_LEN, elbowPoleR, state.elbowR, state.wristR);
 
@@ -301,6 +317,7 @@ function buildFloorPose(
     elbowPoleR: [number, number, number];
     footDirL?: [number, number, number];
     footDirR?: [number, number, number];
+    straightLegs?: boolean;
     prop?: PropType;
     propPosition?: [number, number, number];
   }
@@ -323,10 +340,12 @@ function buildFloorPose(
   }
 
   const ankleTargetL = _tmpA.set(...opts.ankleL);
+  if (opts.straightLegs) stretchAnkleToFullLeg(state.hipL, ankleTargetL);
   const kneePoleL = _tmpPole.set(...opts.kneePoleL);
   solveTwoBoneIK(state.hipL, ankleTargetL, THIGH_LEN, SHIN_LEN, kneePoleL, state.kneeL, state.ankleL);
 
   const ankleTargetR = _tmpA.set(...opts.ankleR);
+  if (opts.straightLegs) stretchAnkleToFullLeg(state.hipR, ankleTargetR);
   const kneePoleR = _tmpPole.set(...opts.kneePoleR);
   solveTwoBoneIK(state.hipR, ankleTargetR, THIGH_LEN, SHIN_LEN, kneePoleR, state.kneeR, state.ankleR);
 
@@ -418,26 +437,57 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
 
   switch (spec.archetype) {
     case 'squat': {
-      const pelvisY = THREE.MathUtils.lerp(0.84, 0.46, w);
-      const pelvisZ = THREE.MathUtils.lerp(0.0, -0.17, w);
-      const pitch = THREE.MathUtils.lerp(0.05, 0.56, w);
+      const pelvisY = THREE.MathUtils.lerp(0.84, 0.5, w);
+      const pelvisZ = THREE.MathUtils.lerp(0.0, -0.14, w);
+      const pitch = THREE.MathUtils.lerp(0.05, 0.38, w);
       buildStandingPose(state, {
         pelvisY,
         pelvisZ,
         spinePitchRad: pitch,
-        footLX: 0.155,
-        footLZ: 0.0,
-        footRX: -0.155,
-        footRZ: 0.0,
-        kneePoleL: [0.25, 0.12, 1.0],
-        kneePoleR: [-0.25, 0.12, 1.0],
-        handL: [0.21, THREE.MathUtils.lerp(0.79, 0.9, w), THREE.MathUtils.lerp(0.1, 0.46, w)],
-        handR: [-0.21, THREE.MathUtils.lerp(0.79, 0.9, w), THREE.MathUtils.lerp(0.1, 0.46, w)],
-        elbowPoleL: [0.45, -0.4, -0.5],
-        elbowPoleR: [-0.45, -0.4, -0.5],
+        footLX: 0.165,
+        footLZ: 0.02,
+        footRX: -0.165,
+        footRZ: -0.02,
+        kneePoleL: [0.24, 0.15, 1.0],
+        kneePoleR: [-0.24, 0.15, 1.0],
+        handL: [0.19, THREE.MathUtils.lerp(0.8, 0.86, w), THREE.MathUtils.lerp(0.1, 0.56, w)],
+        handR: [-0.19, THREE.MathUtils.lerp(0.8, 0.86, w), THREE.MathUtils.lerp(0.1, 0.56, w)],
+        elbowPoleL: [0.45, -0.45, -0.45],
+        elbowPoleR: [-0.45, -0.45, -0.45],
         footDirL: [0.18, 0, 1],
         footDirR: [-0.18, 0, 1],
       });
+      return;
+    }
+
+    case 'knee_circles': {
+      const theta = c * Math.PI * 2;
+      const circleX = Math.cos(theta) * 0.075;
+      const circleZ = Math.sin(theta) * 0.045;
+      const pelvisY = 0.74 + Math.sin(theta) * 0.012;
+      const kneeLX = 0.075 + circleX;
+      const kneeRX = -0.075 + circleX;
+      const kneeZ = 0.23 + circleZ;
+      buildStandingPose(state, {
+        pelvisX: circleX * 0.16,
+        pelvisY,
+        pelvisZ: -0.1,
+        spinePitchRad: 0.36,
+        footLX: 0.075,
+        footLZ: 0.02,
+        footRX: -0.075,
+        footRZ: 0.02,
+        kneePoleL: [kneeLX, 0.2, Math.max(0.45, kneeZ + 0.78)],
+        kneePoleR: [kneeRX, 0.2, Math.max(0.45, kneeZ + 0.78)],
+        handL: [kneeLX * 0.88, 0.49, 0.25 + circleZ * 0.5],
+        handR: [kneeRX * 0.88, 0.49, 0.25 + circleZ * 0.5],
+        elbowPoleL: [0.85, 0.1, 0.25],
+        elbowPoleR: [-0.85, 0.1, 0.25],
+        footDirL: [0.05, 0, 1],
+        footDirR: [-0.05, 0, 1],
+      });
+      state.head.y = state.neck.y + 0.112;
+      state.head.z = state.neck.z + 0.068;
       return;
     }
 
@@ -468,31 +518,31 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
       let pelvisY = 0.84;
       let pelvisZ = 0;
       let footY = ANKLE_FLOOR_Y;
-      let pitch = 0.1;
-      let armY = 0.82;
-      let armZ = 0.15;
+      let pitch = 0.08;
+      let armY = 0.86;
+      let armZ = 0.16;
 
       if (c < 0.36) {
         const t = smooth01(c / 0.36);
         pelvisY = THREE.MathUtils.lerp(0.84, 0.48, t);
         pelvisZ = THREE.MathUtils.lerp(0, -0.14, t);
-        pitch = THREE.MathUtils.lerp(0.05, 0.52, t);
-        armY = THREE.MathUtils.lerp(0.85, 0.66, t);
-        armZ = THREE.MathUtils.lerp(0.15, -0.25, t);
+        pitch = THREE.MathUtils.lerp(0.05, 0.44, t);
+        armY = THREE.MathUtils.lerp(0.86, 0.72, t);
+        armZ = THREE.MathUtils.lerp(0.16, 0.04, t);
       } else if (c < 0.72) {
         const airArc = Math.sin(((c - 0.36) / 0.36) * Math.PI);
         pelvisY = 0.84 + airArc * 0.34;
         footY = ANKLE_FLOOR_Y + airArc * 0.34;
         pitch = 0.04;
-        armY = THREE.MathUtils.lerp(1.18, 1.56, airArc);
-        armZ = 0.12;
+        armY = THREE.MathUtils.lerp(1.16, 1.56, airArc);
+        armZ = 0.16;
       } else {
         const t = smooth01((c - 0.72) / 0.28);
         pelvisY = THREE.MathUtils.lerp(0.68, 0.84, t);
         pelvisZ = THREE.MathUtils.lerp(-0.07, 0, t);
-        pitch = THREE.MathUtils.lerp(0.28, 0.05, t);
-        armY = THREE.MathUtils.lerp(0.86, 0.85, t);
-        armZ = THREE.MathUtils.lerp(0.28, 0.15, t);
+        pitch = THREE.MathUtils.lerp(0.26, 0.05, t);
+        armY = THREE.MathUtils.lerp(0.88, 0.86, t);
+        armZ = THREE.MathUtils.lerp(0.28, 0.16, t);
       }
 
       buildStandingPose(state, {
@@ -507,8 +557,8 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         footRZ: 0,
         handL: [0.22, armY, armZ],
         handR: [-0.22, armY, armZ],
-        elbowPoleL: [0.4, -0.3, -0.6],
-        elbowPoleR: [-0.4, -0.3, -0.6],
+        elbowPoleL: [0.35, -0.35, -0.65],
+        elbowPoleR: [-0.35, -0.35, -0.65],
       });
       return;
     }
@@ -549,8 +599,8 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         footLY: ANKLE_FLOOR_Y,
         footLZ: 0.34,
         footRX: -0.12,
-        footRY: 0.49,
-        footRZ: -0.48,
+        footRY: 0.52,
+        footRZ: -0.52,
         kneePoleL: [0.04, 0.2, 1.0],
         kneePoleR: [-0.05, -0.8, 0.55],
         handL: [0.23, pelvisY + 0.05, pelvisZ + 0.06],
@@ -582,25 +632,26 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
     }
 
     case 'jumping_jack': {
-      const jump = w * 0.08;
-      const spreadX = THREE.MathUtils.lerp(0.11, 0.33, w);
-      const handX = THREE.MathUtils.lerp(0.24, 0.14, w);
-      const handY = THREE.MathUtils.lerp(0.76, 1.68, w);
+      const jump = w * 0.065;
+      const footLift = Math.sin(w * Math.PI) * 0.04;
+      const spreadX = THREE.MathUtils.lerp(0.105, 0.34, w);
+      const handX = THREE.MathUtils.lerp(0.24, 0.56, w);
+      const handY = THREE.MathUtils.lerp(0.74, 1.69, w);
       buildStandingPose(state, {
-        pelvisY: 0.84 + jump,
+        pelvisY: 0.84 + jump + footLift,
         pelvisZ: 0,
         footLX: spreadX,
-        footLY: ANKLE_FLOOR_Y + Math.sin(w * Math.PI) * 0.04,
+        footLY: ANKLE_FLOOR_Y + footLift,
         footLZ: 0,
         footRX: -spreadX,
-        footRY: ANKLE_FLOOR_Y + Math.sin(w * Math.PI) * 0.04,
+        footRY: ANKLE_FLOOR_Y + footLift,
         footRZ: 0,
-        handL: [handX, handY, 0.04],
-        handR: [-handX, handY, 0.04],
-        elbowPoleL: [0.9, 0.2, -0.15],
-        elbowPoleR: [-0.9, 0.2, -0.15],
-        footDirL: [0.25 * w, 0, 1],
-        footDirR: [-0.25 * w, 0, 1],
+        handL: [handX, handY, 0.02],
+        handR: [-handX, handY, 0.02],
+        elbowPoleL: [0.35, -0.2, -0.35],
+        elbowPoleR: [-0.35, -0.2, -0.35],
+        footDirL: [0.22 * w, 0, 1],
+        footDirR: [-0.22 * w, 0, 1],
       });
       return;
     }
@@ -651,7 +702,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
 
     case 'shoulder_press': {
       state.prop = 'dumbbells';
-      const handY = THREE.MathUtils.lerp(1.36, 1.78, w);
+      const handY = THREE.MathUtils.lerp(1.36, 1.86, w);
       const handX = THREE.MathUtils.lerp(0.32, 0.17, w);
       buildStandingPose(state, {
         pelvisY: 0.84,
@@ -691,7 +742,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
 
     case 'arm_circles': {
       const theta = c * Math.PI * 2;
-      const radius = 0.36;
+      const radius = 0.38;
       const handY = 1.28 + Math.sin(theta) * radius;
       const handZ = Math.cos(theta) * radius;
       buildStandingPose(state, {
@@ -701,33 +752,33 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         footLZ: 0,
         footRX: -0.13,
         footRZ: 0,
-        handL: [0.46, handY, handZ],
-        handR: [-0.46, handY, handZ],
-        elbowPoleL: [0.5, 0.1, -0.6],
-        elbowPoleR: [-0.5, 0.1, -0.6],
+        handL: [0.36, handY, handZ],
+        handR: [-0.36, handY, handZ],
+        elbowPoleL: [0.4, -0.1, -0.6],
+        elbowPoleR: [-0.4, -0.1, -0.6],
       });
       return;
     }
 
     case 'torso_twist': {
-      const yaw = s * 0.88;
-      const r = 0.32;
-      const handLX = Math.sin(yaw + 0.55) * r;
-      const handLZ = Math.cos(yaw + 0.55) * r;
-      const handRX = Math.sin(yaw - 0.55) * r;
-      const handRZ = Math.cos(yaw - 0.55) * r;
+      const yaw = s * 0.82;
+      const r = 0.27;
+      const handLX = Math.sin(yaw + 0.65) * r;
+      const handLZ = Math.max(0.14, Math.cos(yaw + 0.65) * r);
+      const handRX = Math.sin(yaw - 0.65) * r;
+      const handRZ = Math.max(0.14, Math.cos(yaw - 0.65) * r);
       buildStandingPose(state, {
-        pelvisY: 0.83,
+        pelvisY: 0.84,
         pelvisZ: 0,
         torsoYawRad: yaw,
         footLX: 0.19,
         footLZ: 0,
         footRX: -0.19,
         footRZ: 0,
-        handL: [handLX, 1.15, handLZ],
-        handR: [handRX, 1.15, handRZ],
-        elbowPoleL: [Math.cos(yaw), -0.25, -Math.sin(yaw)],
-        elbowPoleR: [-Math.cos(yaw), -0.25, Math.sin(yaw)],
+        handL: [handLX, 1.21, handLZ],
+        handR: [handRX, 1.21, handRZ],
+        elbowPoleL: [Math.cos(yaw) * 0.7, -0.85, -Math.sin(yaw) * 0.5],
+        elbowPoleR: [-Math.cos(yaw) * 0.7, -0.85, Math.sin(yaw) * 0.5],
       });
       return;
     }
@@ -738,7 +789,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
       const handY = THREE.MathUtils.lerp(0.55, 0.87, pull);
       const handZ = THREE.MathUtils.lerp(0.38, 0.16, pull);
       buildStandingPose(state, {
-        pelvisY: 0.77,
+        pelvisY: 0.80,
         pelvisZ: -0.14,
         spinePitchRad: 0.82,
         footLX: 0.14,
@@ -756,12 +807,12 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
     }
 
     case 'hamstring_stretch': {
-      const pitch = THREE.MathUtils.lerp(0.08, 1.55, w);
-      const handY = THREE.MathUtils.lerp(0.84, 0.22, w);
-      const handZ = THREE.MathUtils.lerp(0.14, 0.3, w);
+      const pitch = THREE.MathUtils.lerp(0.06, 1.38, w);
+      const handY = THREE.MathUtils.lerp(0.84, 0.25, w);
+      const handZ = THREE.MathUtils.lerp(0.14, 0.34, w);
       buildStandingPose(state, {
         pelvisY: THREE.MathUtils.lerp(0.84, 0.82, w),
-        pelvisZ: THREE.MathUtils.lerp(0, -0.12, w),
+        pelvisZ: THREE.MathUtils.lerp(0, -0.10, w),
         spinePitchRad: pitch,
         footLX: 0.12,
         footLZ: 0.06,
@@ -771,8 +822,8 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         kneePoleR: [-0.05, 0.1, 1.0],
         handL: [0.15, handY, handZ],
         handR: [-0.15, handY, handZ],
-        elbowPoleL: [0.3, 0.4, -0.5],
-        elbowPoleR: [-0.3, 0.4, -0.5],
+        elbowPoleL: [0.2, 0.35, -0.6],
+        elbowPoleR: [-0.2, 0.35, -0.6],
       });
       return;
     }
@@ -781,41 +832,86 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
     case 'pushup':
     case 'diamond_pushup': {
       const low = w;
-      const chestY = THREE.MathUtils.lerp(0.49, 0.16, low);
-      const pelvisY = THREE.MathUtils.lerp(0.28, 0.13, low);
+      const handX = 0.40;
+      const handY = 0.05;
+      const ankleY = 0.075;
+      const armLen = UPPER_ARM_LEN + FOREARM_LEN;
+      const legReach = THIGH_LEN + SHIN_LEN + 0.03;
+      const shoulderReach = legReach + SPINE_LEN - 0.045;
+      const topShoulderY = handY + armLen * 0.985;
+      const sinTop = Math.min(0.99, (topShoulderY - ankleY) / shoulderReach);
+      const cosTop = Math.sqrt(Math.max(0, 1 - sinTop * sinTop));
+      const ankleX = handX - 0.05 - shoulderReach * cosTop;
+
+      const shoulderY = THREE.MathUtils.lerp(topShoulderY, 0.20, low);
+      const sinTheta = Math.max(0.02, Math.min(0.99, (shoulderY - ankleY) / shoulderReach));
+      const cosTheta = Math.sqrt(Math.max(0, 1 - sinTheta * sinTheta));
+
+      const pelvisX = ankleX + legReach * cosTheta;
+      const pelvisY = ankleY + legReach * sinTheta;
+      const neckX = pelvisX + SPINE_LEN * cosTheta;
+      const neckY = pelvisY + SPINE_LEN * sinTheta;
       const handSpread = spec.archetype === 'diamond_pushup' ? 0.06 : 0.23;
+
       buildFloorPose(state, {
-        pelvis: [-0.08, pelvisY, 0],
-        neck: [0.38, chestY, 0],
-        torsoForwardHint: [0, -1, 0],
-        ankleL: [-0.82, 0.075, -0.09],
-        ankleR: [-0.82, 0.075, 0.09],
-        kneePoleL: [-0.1, 0.85, -0.15],
-        kneePoleR: [-0.1, 0.85, 0.15],
-        handL: [0.41, 0.05, -handSpread],
-        handR: [0.41, 0.05, handSpread],
-        elbowPoleL: [-0.7, 0.5, -0.65],
-        elbowPoleR: [-0.7, 0.5, 0.65],
+        pelvis: [pelvisX, pelvisY, 0],
+        neck: [neckX, neckY, 0],
+        torsoForwardHint: [sinTheta, -cosTheta, 0],
+        ankleL: [ankleX, ankleY, -0.09],
+        ankleR: [ankleX, ankleY, 0.09],
+        kneePoleL: [-sinTheta, cosTheta, -0.1],
+        kneePoleR: [-sinTheta, cosTheta, 0.1],
+        handL: [handX, handY, -handSpread],
+        handR: [handX, handY, handSpread],
+        elbowPoleL: [-0.65, 0.75, -0.6],
+        elbowPoleR: [-0.65, 0.75, 0.6],
       });
+      return;
+    }
+
+    case 'box_pushup': {
+      const low = w;
+      const chestY = THREE.MathUtils.lerp(0.58, 0.25, low);
+      const pelvisY = THREE.MathUtils.lerp(0.51, 0.44, low);
+      buildFloorPose(state, {
+        pelvis: [-0.21, pelvisY, 0],
+        neck: [0.27, chestY, 0],
+        torsoForwardHint: [0, -1, 0],
+        ankleL: [-0.63, 0.065, -0.12],
+        ankleR: [-0.63, 0.065, 0.12],
+        kneePoleL: [0.55, -0.75, -0.06],
+        kneePoleR: [0.55, -0.75, 0.06],
+        handL: [0.27, 0.05, -0.21],
+        handR: [0.27, 0.05, 0.21],
+        elbowPoleL: [-0.85, 0.45, -0.45],
+        elbowPoleR: [-0.85, 0.45, 0.45],
+        footDirL: [-0.45, -0.88, 0],
+        footDirR: [-0.45, -0.88, 0],
+      });
+      state.head.y = state.neck.y - 0.035;
+      state.head.x = state.neck.x + 0.125;
       return;
     }
 
     case 'incline_pushup': {
       const low = w;
-      const chestY = THREE.MathUtils.lerp(0.84, 0.61, low);
-      const pelvisY = THREE.MathUtils.lerp(0.53, 0.43, low);
+      const chestY = THREE.MathUtils.lerp(1.06, 0.68, low);
+      const pelvisY = THREE.MathUtils.lerp(0.70, 0.44, low);
+      const chestX = THREE.MathUtils.lerp(0.39, 0.35, low);
+      const pelvisX = THREE.MathUtils.lerp(0.02, -0.06, low);
       buildFloorPose(state, {
-        pelvis: [-0.06, pelvisY, 0],
-        neck: [0.35, chestY, 0],
+        pelvis: [pelvisX, pelvisY, 0],
+        neck: [chestX, chestY, 0],
         torsoForwardHint: [0, -1, 0],
         ankleL: [-0.72, 0.065, -0.09],
         ankleR: [-0.72, 0.065, 0.09],
         kneePoleL: [-0.1, 0.85, -0.15],
         kneePoleR: [-0.1, 0.85, 0.15],
-        handL: [0.45, 0.49, -0.21],
-        handR: [0.45, 0.49, 0.21],
-        elbowPoleL: [-0.65, 0.45, -0.65],
-        elbowPoleR: [-0.65, 0.45, 0.65],
+        handL: [0.46, 0.49, -0.19],
+        handR: [0.46, 0.49, 0.19],
+        elbowPoleL: [-0.85, 0.25, -0.45],
+        elbowPoleR: [-0.85, 0.25, 0.45],
+        straightLegs: true,
         prop: 'bench',
         propPosition: [0.58, 0, 0],
       });
@@ -824,8 +920,8 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
 
     case 'tricep_dip': {
       const low = w;
-      const pelvisY = THREE.MathUtils.lerp(0.45, 0.22, low);
-      const neckY = THREE.MathUtils.lerp(0.91, 0.67, low);
+      const pelvisY = THREE.MathUtils.lerp(0.59, 0.22, low);
+      const neckY = THREE.MathUtils.lerp(1.05, 0.68, low);
       buildFloorPose(state, {
         pelvis: [-0.16, pelvisY, 0],
         neck: [-0.21, neckY, 0],
@@ -834,8 +930,8 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         ankleR: [0.58, 0.055, 0.09],
         kneePoleL: [0.4, 0.95, -0.08],
         kneePoleR: [0.4, 0.95, 0.08],
-        handL: [-0.36, 0.49, -0.19],
-        handR: [-0.36, 0.49, 0.19],
+        handL: [-0.34, 0.49, -0.19],
+        handR: [-0.34, 0.49, 0.19],
         elbowPoleL: [-0.95, 0.25, -0.18],
         elbowPoleR: [-0.95, 0.25, 0.18],
         footDirL: [0.6, 0.8, 0],
@@ -860,6 +956,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         handR: [0.58, 0.05, 0.14],
         elbowPoleL: [0.3, -1.0, -0.05],
         elbowPoleR: [0.3, -1.0, 0.05],
+        straightLegs: true,
       });
       return;
     }
@@ -868,8 +965,8 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
       const leftIn = Math.max(0, s);
       const rightIn = Math.max(0, -s);
       buildFloorPose(state, {
-        pelvis: [-0.08, 0.43, 0],
-        neck: [0.37, 0.53, 0],
+        pelvis: [-0.08, 0.47, 0],
+        neck: [0.37, 0.58, 0],
         torsoForwardHint: [0, -1, 0],
         ankleL: [THREE.MathUtils.lerp(-0.82, -0.18, leftIn), THREE.MathUtils.lerp(0.085, 0.18, leftIn), -0.1],
         ankleR: [THREE.MathUtils.lerp(-0.82, -0.18, rightIn), THREE.MathUtils.lerp(0.085, 0.18, rightIn), 0.1],
@@ -884,68 +981,93 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
     }
 
     case 'burpee': {
-      if (c < 0.32) {
-        const t = smooth01(c / 0.32);
-        const pelvisY = THREE.MathUtils.lerp(0.84, 0.38, t);
-        buildStandingPose(state, {
-          pelvisY,
-          pelvisZ: THREE.MathUtils.lerp(0, -0.2, t),
-          spinePitchRad: THREE.MathUtils.lerp(0.04, 0.85, t),
-          footLX: 0.15,
-          footLZ: 0,
-          footRX: -0.15,
-          footRZ: 0,
-          handL: [0.2, THREE.MathUtils.lerp(1.62, 0.06, t), THREE.MathUtils.lerp(0.05, 0.32, t)],
-          handR: [-0.2, THREE.MathUtils.lerp(1.62, 0.06, t), THREE.MathUtils.lerp(0.05, 0.32, t)],
-        });
-      } else if (c < 0.68) {
-        const t = Math.sin(((c - 0.32) / 0.36) * Math.PI);
+      // Todo o burpee alinhado no mesmo eixo (+X à frente, L = -Z, R = +Z) sem girar a câmera!
+      if (c < 0.30) {
+        const t = smooth01(c / 0.30);
+        const pitch = THREE.MathUtils.lerp(0.04, 0.86, t);
+        const pelvisX = THREE.MathUtils.lerp(0.0, -0.16, t);
+        const pelvisY = THREE.MathUtils.lerp(0.84, 0.39, t);
+        const neckX = pelvisX + Math.sin(pitch) * SPINE_LEN;
+        const neckY = pelvisY + Math.cos(pitch) * SPINE_LEN;
         buildFloorPose(state, {
-          pelvis: [-0.08, THREE.MathUtils.lerp(0.39, 0.41, t), 0],
-          neck: [0.38, THREE.MathUtils.lerp(0.49, 0.53, t), 0],
-          torsoForwardHint: [0, -1, 0],
-          ankleL: [THREE.MathUtils.lerp(-0.18, -0.82, t), 0.085, -0.11],
-          ankleR: [THREE.MathUtils.lerp(-0.18, -0.82, t), 0.085, 0.11],
-          kneePoleL: [0.35, -0.25, -0.12],
-          kneePoleR: [0.35, -0.25, 0.12],
-          handL: [0.42, 0.05, -0.21],
-          handR: [0.42, 0.05, 0.21],
+          pelvis: [pelvisX, pelvisY, 0],
+          neck: [neckX, neckY, 0],
+          torsoForwardHint: [Math.cos(pitch), -Math.sin(pitch), 0],
+          ankleL: [0.02, ANKLE_FLOOR_Y, -0.13],
+          ankleR: [0.02, ANKLE_FLOOR_Y, 0.13],
+          kneePoleL: [1.0, 0.25, -0.12],
+          kneePoleR: [1.0, 0.25, 0.12],
+          handL: [THREE.MathUtils.lerp(0.14, 0.38, t), THREE.MathUtils.lerp(1.56, 0.055, t), -0.18],
+          handR: [THREE.MathUtils.lerp(0.14, 0.38, t), THREE.MathUtils.lerp(1.56, 0.055, t), 0.18],
+          elbowPoleL: [-0.7, 0.2, -0.35],
+          elbowPoleR: [-0.7, 0.2, 0.35],
+          footDirL: [1, 0, 0],
+          footDirR: [1, 0, 0],
+          prop: 'none',
+        });
+      } else if (c < 0.70) {
+        const t = Math.sin(((c - 0.30) / 0.40) * Math.PI);
+        const pelvisX = THREE.MathUtils.lerp(-0.16, -0.08, t);
+        const pelvisY = THREE.MathUtils.lerp(0.39, 0.44, t);
+        const neckX = THREE.MathUtils.lerp(0.20, 0.39, t);
+        const neckY = THREE.MathUtils.lerp(0.70, 0.56, t);
+        buildFloorPose(state, {
+          pelvis: [pelvisX, pelvisY, 0],
+          neck: [neckX, neckY, 0],
+          torsoForwardHint: [0.25 * (1 - t), -1, 0],
+          ankleL: [THREE.MathUtils.lerp(0.02, -0.80, t), THREE.MathUtils.lerp(ANKLE_FLOOR_Y, 0.075, t), -0.11],
+          ankleR: [THREE.MathUtils.lerp(0.02, -0.80, t), THREE.MathUtils.lerp(ANKLE_FLOOR_Y, 0.075, t), 0.11],
+          kneePoleL: [THREE.MathUtils.lerp(1.0, -0.1, t), THREE.MathUtils.lerp(0.25, 0.85, t), -0.12],
+          kneePoleR: [THREE.MathUtils.lerp(1.0, -0.1, t), THREE.MathUtils.lerp(0.25, 0.85, t), 0.12],
+          handL: [0.40, 0.055, -0.19],
+          handR: [0.40, 0.055, 0.19],
           elbowPoleL: [-0.7, 0.35, -0.3],
           elbowPoleR: [-0.7, 0.35, 0.3],
+          footDirL: [THREE.MathUtils.lerp(1, -0.4, t), THREE.MathUtils.lerp(0, -0.9, t), 0],
+          footDirR: [THREE.MathUtils.lerp(1, -0.4, t), THREE.MathUtils.lerp(0, -0.9, t), 0],
           prop: 'none',
         });
       } else {
-        const t = smooth01((c - 0.68) / 0.32);
-        const pelvisY = THREE.MathUtils.lerp(0.38, 0.84, t);
-        buildStandingPose(state, {
-          pelvisY,
-          pelvisZ: THREE.MathUtils.lerp(-0.2, 0, t),
-          spinePitchRad: THREE.MathUtils.lerp(0.85, 0.04, t),
-          footLX: 0.15,
-          footLZ: 0,
-          footRX: -0.15,
-          footRZ: 0,
-          handL: [0.2, THREE.MathUtils.lerp(0.06, 1.62, t), THREE.MathUtils.lerp(0.32, 0.05, t)],
-          handR: [-0.2, THREE.MathUtils.lerp(0.06, 1.62, t), THREE.MathUtils.lerp(0.32, 0.05, t)],
+        const t = smooth01((c - 0.70) / 0.30);
+        const pitch = THREE.MathUtils.lerp(0.86, 0.04, t);
+        const pelvisX = THREE.MathUtils.lerp(-0.16, 0.0, t);
+        const pelvisY = THREE.MathUtils.lerp(0.39, 0.84, t);
+        const neckX = pelvisX + Math.sin(pitch) * SPINE_LEN;
+        const neckY = pelvisY + Math.cos(pitch) * SPINE_LEN;
+        buildFloorPose(state, {
+          pelvis: [pelvisX, pelvisY, 0],
+          neck: [neckX, neckY, 0],
+          torsoForwardHint: [Math.cos(pitch), -Math.sin(pitch), 0],
+          ankleL: [0.02, ANKLE_FLOOR_Y, -0.13],
+          ankleR: [0.02, ANKLE_FLOOR_Y, 0.13],
+          kneePoleL: [1.0, 0.25, -0.12],
+          kneePoleR: [1.0, 0.25, 0.12],
+          handL: [THREE.MathUtils.lerp(0.38, 0.14, t), THREE.MathUtils.lerp(0.055, 1.56, t), -0.18],
+          handR: [THREE.MathUtils.lerp(0.38, 0.14, t), THREE.MathUtils.lerp(0.055, 1.56, t), 0.18],
+          elbowPoleL: [-0.7, 0.2, -0.35],
+          elbowPoleR: [-0.7, 0.2, 0.35],
+          footDirL: [1, 0, 0],
+          footDirR: [1, 0, 0],
+          prop: 'none',
         });
       }
       return;
     }
 
     case 'renegade_row': {
-      let chestY = 0.49;
-      let pelvisY = 0.34;
+      let chestY = 0.60;
+      let pelvisY = 0.48;
       let handRY = 0.065;
-      let handRX = 0.41;
+      let handRX = 0.39;
 
       if (c < 0.36) {
         const push = Math.sin((c / 0.36) * Math.PI);
-        chestY = THREE.MathUtils.lerp(0.49, 0.19, push);
-        pelvisY = THREE.MathUtils.lerp(0.34, 0.15, push);
+        chestY = THREE.MathUtils.lerp(0.60, 0.21, push);
+        pelvisY = THREE.MathUtils.lerp(0.48, 0.17, push);
       } else if (c < 0.82) {
         const row = Math.sin(((c - 0.36) / 0.46) * Math.PI);
         handRY = THREE.MathUtils.lerp(0.065, 0.38, row);
-        handRX = THREE.MathUtils.lerp(0.41, 0.18, row);
+        handRX = THREE.MathUtils.lerp(0.39, 0.22, row);
       }
 
       buildFloorPose(state, {
@@ -956,10 +1078,11 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         ankleR: [-0.82, 0.075, 0.14],
         kneePoleL: [0, 0.9, -0.1],
         kneePoleR: [0, 0.9, 0.1],
-        handL: [0.41, 0.065, -0.21],
+        handL: [0.39, 0.065, -0.21],
         handR: [handRX, handRY, 0.21],
         elbowPoleL: [-0.7, 0.45, -0.4],
-        elbowPoleR: [-0.85, 0.85, 0.25],
+        elbowPoleR: [-0.85, 0.95, 0.35],
+        straightLegs: true,
         prop: 'dumbbells',
       });
       return;
@@ -968,45 +1091,52 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
     // --- POSES SUPINAS / SENTADAS NO EIXO X (L = -Z, R = +Z) ---
     case 'glute_bridge': {
       const lift = w;
-      const pelvisY = THREE.MathUtils.lerp(0.11, 0.36, lift);
+      const pelvisY = THREE.MathUtils.lerp(0.11, 0.35, lift);
       const pelvisX = THREE.MathUtils.lerp(-0.02, 0.03, lift);
       buildFloorPose(state, {
         pelvis: [pelvisX, pelvisY, 0],
-        neck: [-0.46, 0.11, 0],
+        neck: [-0.46, 0.1, 0],
         torsoForwardHint: [0, 1, 0],
-        ankleL: [0.42, ANKLE_FLOOR_Y + 0.02, -0.12],
-        ankleR: [0.42, ANKLE_FLOOR_Y + 0.02, 0.12],
+        ankleL: [0.4, ANKLE_FLOOR_Y + 0.012, -0.12],
+        ankleR: [0.4, ANKLE_FLOOR_Y + 0.012, 0.12],
         kneePoleL: [0.3, 1.0, -0.08],
         kneePoleR: [0.3, 1.0, 0.08],
-        handL: [-0.06, 0.055, -0.25],
-        handR: [-0.06, 0.055, 0.25],
-        elbowPoleL: [-0.4, 0.2, -0.7],
-        elbowPoleR: [-0.4, 0.2, 0.7],
+        handL: [-0.02, 0.058, -0.22],
+        handR: [-0.02, 0.058, 0.22],
+        elbowPoleL: [-0.4, 0.1, -0.8],
+        elbowPoleR: [-0.4, 0.1, 0.8],
         footDirL: [1, 0, 0],
         footDirR: [1, 0, 0],
       });
+      state.head.y = 0.11;
+      state.head.x = state.neck.x - 0.128;
       return;
     }
 
     case 'crunch': {
       const curl = w;
       const neckX = THREE.MathUtils.lerp(-0.46, -0.26, curl);
-      const neckY = THREE.MathUtils.lerp(0.11, 0.4, curl);
+      const neckY = THREE.MathUtils.lerp(0.11, 0.38, curl);
       buildFloorPose(state, {
-        pelvis: [0.0, 0.11, 0],
+        pelvis: [0.02, 0.1, 0],
         neck: [neckX, neckY, 0],
-        torsoForwardHint: [0.4 * curl, 1, 0],
-        ankleL: [0.56, ANKLE_FLOOR_Y + 0.02, -0.12],
-        ankleR: [0.56, ANKLE_FLOOR_Y + 0.02, 0.12],
+        torsoForwardHint: [0.48 * curl, 1, 0],
+        ankleL: [0.58, ANKLE_FLOOR_Y + 0.015, -0.12],
+        ankleR: [0.58, ANKLE_FLOOR_Y + 0.015, 0.12],
         kneePoleL: [0.25, 1.0, -0.05],
         kneePoleR: [0.25, 1.0, 0.05],
-        handL: [neckX + 0.05, neckY + 0.12, -0.15],
-        handR: [neckX + 0.05, neckY + 0.12, 0.15],
-        elbowPoleL: [-0.4, 0.35, -0.85],
-        elbowPoleR: [-0.4, 0.35, 0.85],
+        handL: [THREE.MathUtils.lerp(-0.08, 0.25, curl), THREE.MathUtils.lerp(0.16, 0.48, curl), -0.16],
+        handR: [THREE.MathUtils.lerp(-0.08, 0.25, curl), THREE.MathUtils.lerp(0.16, 0.48, curl), 0.16],
+        elbowPoleL: [-0.3, -0.4, -0.6],
+        elbowPoleR: [-0.3, -0.4, 0.6],
         footDirL: [1, 0, 0],
         footDirR: [1, 0, 0],
       });
+      // Mantém a lombar apoiada e flexiona suavemente a cervical acompanhando o movimento
+      state.lumbarMid.set(-0.14, 0.105 + curl * 0.02, 0);
+      state.chestCenter.set(THREE.MathUtils.lerp(-0.32, -0.19, curl), THREE.MathUtils.lerp(0.11, 0.26, curl), 0);
+      state.head.x = state.neck.x + THREE.MathUtils.lerp(-0.125, -0.048, curl);
+      state.head.y = state.neck.y + THREE.MathUtils.lerp(0.02, 0.122, curl);
       return;
     }
 
@@ -1019,17 +1149,17 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
 
       buildFloorPose(state, {
         pelvis: [0.02, 0.11, 0],
-        neck: [-0.3, 0.36, 0],
+        neck: [-0.3, 0.38, 0],
         torsoForwardHint: [0.35, 1, 0],
         torsoYawRad: twist * 0.45,
         ankleL: [kneeLX + (twist > 0 ? 0.1 : 0.25), kneeLY - (twist > 0 ? 0.02 : 0.04), -0.12],
         ankleR: [kneeRX + (twist < 0 ? 0.1 : 0.25), kneeRY - (twist < 0 ? 0.02 : 0.04), 0.12],
         kneePoleL: [-0.2, 1.0, -0.08],
         kneePoleR: [-0.2, 1.0, 0.08],
-        handL: [-0.24, 0.48, -0.14 + twist * 0.06],
-        handR: [-0.24, 0.48, 0.14 + twist * 0.06],
-        elbowPoleL: [0.2, 0.4, -0.9],
-        elbowPoleR: [0.2, 0.4, 0.9],
+        handL: [-0.31, 0.45, -0.14 + twist * 0.05],
+        handR: [-0.31, 0.45, 0.14 + twist * 0.05],
+        elbowPoleL: [0.25, 0.35, -0.9],
+        elbowPoleR: [0.25, 0.35, 0.9],
         footDirL: [0.7, 0.7, 0],
         footDirR: [0.7, 0.7, 0],
       });
@@ -1037,22 +1167,22 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
     }
 
     case 'russian_twist': {
-      const yaw = s * 0.92;
+      const yaw = s * 0.85;
       const forwardX = Math.cos(yaw);
       const forwardZ = -Math.sin(yaw);
       buildFloorPose(state, {
         pelvis: [-0.08, 0.14, 0],
-        neck: [-0.36, 0.53, 0],
+        neck: [-0.32, 0.5, 0],
         torsoForwardHint: [1, 0.55, 0],
         torsoYawRad: yaw,
-        ankleL: [0.54, 0.22, -0.11],
-        ankleR: [0.54, 0.22, 0.11],
+        ankleL: [0.52, 0.24, -0.08],
+        ankleR: [0.52, 0.24, 0.08],
         kneePoleL: [0.1, 1.0, -0.1],
         kneePoleR: [0.1, 1.0, 0.1],
-        handL: [forwardX * 0.26 - 0.1, 0.34, forwardZ * 0.34 - 0.05],
-        handR: [forwardX * 0.26 - 0.1, 0.34, forwardZ * 0.34 + 0.05],
-        elbowPoleL: [-0.4, -0.5, -0.7],
-        elbowPoleR: [-0.4, -0.5, 0.7],
+        handL: [0.12 + forwardX * 0.24, 0.39, forwardZ * 0.34 - 0.03],
+        handR: [0.12 + forwardX * 0.24, 0.39, forwardZ * 0.34 + 0.03],
+        elbowPoleL: [-0.3, -0.55, -0.75],
+        elbowPoleR: [-0.3, -0.55, 0.75],
         footDirL: [0.45, 0.85, 0],
         footDirR: [0.45, 0.85, 0],
       });
@@ -1079,6 +1209,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         elbowPoleR: [-0.5, 0.2, 0.7],
         footDirL: [-Math.sin(angle), Math.cos(angle), 0],
         footDirR: [-Math.sin(angle), Math.cos(angle), 0],
+        straightLegs: true,
       });
       return;
     }
@@ -1116,12 +1247,13 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         ankleR: [-0.68, 0.16, 0.03],
         kneePoleL: [0, 0.5, 0.9],
         kneePoleR: [0, 0.5, 0.9],
-        handL: [0.46, 0.065, 0.24],
-        handR: [0.44, neckY + 0.5, 0.04],
-        elbowPoleL: [0, -0.85, -0.55],
+        handL: [0.64, 0.065, 0.14],
+        handR: [0.36, neckY + 0.72, 0.04],
+        elbowPoleL: [-0.25, -0.95, -0.25],
         elbowPoleR: [-0.2, 0.2, -0.9],
         footDirL: [0, 0.2, 1],
         footDirR: [0, 0.2, 1],
+        straightLegs: true,
       });
       state.facingAxis = 'x';
       return;
@@ -1131,7 +1263,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
       const kick = w;
       buildFloorPose(state, {
         pelvis: [-0.26, 0.54, 0],
-        neck: [0.22, 0.56, 0],
+        neck: [0.22, 0.58, 0],
         torsoForwardHint: [0, -1, 0],
         ankleL: [-0.62, 0.085, -0.11],
         ankleR: [THREE.MathUtils.lerp(-0.56, -0.78, kick), THREE.MathUtils.lerp(0.1, 0.86, kick), 0.11],
@@ -1147,17 +1279,17 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
 
     case 'fire_hydrant': {
       const open = w;
-      const thighAngle = THREE.MathUtils.lerp(0.08, 1.15, open);
+      const thighAngle = THREE.MathUtils.lerp(0.08, 1.28, open);
       const kneeY = 0.52 - Math.cos(thighAngle) * THIGH_LEN;
-      const kneeZ = 0.11 + Math.sin(thighAngle) * THIGH_LEN;
+      const kneeZ = 0.12 + Math.sin(thighAngle) * THIGH_LEN;
       buildFloorPose(state, {
         pelvis: [-0.26, 0.54, 0],
-        neck: [0.22, 0.56, 0],
+        neck: [0.22, 0.58, 0],
         torsoForwardHint: [0, -1, 0],
         ankleL: [-0.62, 0.085, -0.11],
-        ankleR: [-0.58, Math.max(0.1, kneeY), kneeZ + 0.14],
+        ankleR: [-0.54, Math.max(0.12, kneeY - 0.12), kneeZ + 0.16],
         kneePoleL: [0.55, -0.65, -0.1],
-        kneePoleR: [0.3, -0.2, 0.95],
+        kneePoleR: [0.2, 0.15, 0.96],
         handL: [0.26, 0.05, -0.18],
         handR: [0.26, 0.05, 0.18],
         elbowPoleL: [-0.7, 0.25, -0.25],
@@ -1170,17 +1302,20 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
       const lift = w;
       buildFloorPose(state, {
         pelvis: [-0.05, 0.11, 0],
-        neck: [0.41, THREE.MathUtils.lerp(0.13, 0.3, lift), 0],
+        neck: [0.41, THREE.MathUtils.lerp(0.13, 0.29, lift), 0],
         torsoForwardHint: [0, -1, 0],
-        ankleL: [-0.82, THREE.MathUtils.lerp(0.08, 0.36, lift), -0.1],
-        ankleR: [-0.82, THREE.MathUtils.lerp(0.08, 0.36, lift), 0.1],
+        ankleL: [-0.82, THREE.MathUtils.lerp(0.08, 0.35, lift), -0.1],
+        ankleR: [-0.82, THREE.MathUtils.lerp(0.08, 0.35, lift), 0.1],
         kneePoleL: [0, 0.9, -0.1],
         kneePoleR: [0, 0.9, 0.1],
-        handL: [0.85, THREE.MathUtils.lerp(0.1, 0.44, lift), -0.19],
-        handR: [0.85, THREE.MathUtils.lerp(0.1, 0.44, lift), 0.19],
+        handL: [0.88, THREE.MathUtils.lerp(0.08, 0.34, lift), -0.21],
+        handR: [0.88, THREE.MathUtils.lerp(0.08, 0.34, lift), 0.21],
         elbowPoleL: [0, 0.25, -0.85],
         elbowPoleR: [0, 0.25, 0.85],
+        straightLegs: true,
       });
+      state.head.y = state.neck.y + 0.045;
+      state.head.x = state.neck.x + 0.115;
       return;
     }
 
@@ -1188,7 +1323,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
       const arch = s;
       buildFloorPose(state, {
         pelvis: [-0.26, 0.54 + arch * 0.04, 0],
-        neck: [0.22, 0.56 + arch * 0.06, 0],
+        neck: [0.22, 0.58 + arch * 0.05, 0],
         torsoForwardHint: [0, -1, 0],
         headTiltUp: -arch,
         ankleL: [-0.62, 0.085, -0.11],
@@ -1226,17 +1361,18 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
     case 'cobra_stretch': {
       const lift = w;
       buildFloorPose(state, {
-        pelvis: [-0.05, 0.12, 0],
-        neck: [0.34, THREE.MathUtils.lerp(0.16, 0.54, lift), 0],
+        pelvis: [-0.05, THREE.MathUtils.lerp(0.12, 0.23, lift), 0],
+        neck: [0.25, THREE.MathUtils.lerp(0.16, 0.65, lift), 0],
         torsoForwardHint: [0.45 * lift, -1, 0],
         ankleL: [-0.82, 0.075, -0.1],
         ankleR: [-0.82, 0.075, 0.1],
         kneePoleL: [0, 0.9, -0.1],
         kneePoleR: [0, 0.9, 0.1],
-        handL: [0.38, 0.05, -0.19],
-        handR: [0.38, 0.05, 0.19],
+        handL: [0.25, 0.05, -0.19],
+        handR: [0.25, 0.05, 0.19],
         elbowPoleL: [-0.85, 0.3, -0.35],
         elbowPoleR: [-0.85, 0.3, 0.35],
+        straightLegs: true,
       });
       return;
     }
@@ -1245,7 +1381,7 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
       const twist = w;
       buildFloorPose(state, {
         pelvis: [-0.08, 0.36, 0],
-        neck: [0.32, 0.55, 0],
+        neck: [0.32, 0.58, 0],
         torsoForwardHint: [0, -1, 0],
         torsoYawRad: twist * 1.15,
         ankleL: [0.42, 0.06, -0.18],
@@ -1253,11 +1389,52 @@ export function evaluateExercisePose3D(spec: ExerciseTutorialSpec, cycleProgress
         kneePoleL: [0.3, 0.95, -0.15],
         kneePoleR: [0, -0.55, 0.1],
         handL: [0.34, 0.05, -0.04],
-        handR: [THREE.MathUtils.lerp(0.34, 0.31, twist), THREE.MathUtils.lerp(0.06, 1.03, twist), THREE.MathUtils.lerp(0.18, 0.16, twist)],
+        handR: [THREE.MathUtils.lerp(0.34, 0.31, twist), THREE.MathUtils.lerp(0.06, 1.24, twist), THREE.MathUtils.lerp(0.18, 0.16, twist)],
         elbowPoleL: [-0.6, 0.25, -0.3],
         elbowPoleR: [-0.6, 0.1, 0.7],
         footDirL: [1, 0, 0],
         footDirR: [-0.5, -0.85, 0],
+      });
+      return;
+    }
+
+    case 'bird_dog': {
+      const extL = smooth01(Math.max(0, s));
+      const extR = smooth01(Math.max(0, -s));
+      buildFloorPose(state, {
+        pelvis: [-0.24, 0.54, 0],
+        neck: [0.24, 0.58, 0],
+        torsoForwardHint: [0, -1, 0],
+        ankleL: [THREE.MathUtils.lerp(-0.62, -1.07, extL), THREE.MathUtils.lerp(0.08, 0.52, extL), -0.11],
+        ankleR: [THREE.MathUtils.lerp(-0.62, -1.07, extR), THREE.MathUtils.lerp(0.08, 0.52, extR), 0.11],
+        kneePoleL: [THREE.MathUtils.lerp(0.55, 0.0, extL), THREE.MathUtils.lerp(-0.65, 0.02, extL), -0.08],
+        kneePoleR: [THREE.MathUtils.lerp(0.55, 0.0, extR), THREE.MathUtils.lerp(-0.65, 0.02, extR), 0.08],
+        handL: [THREE.MathUtils.lerp(0.24, 0.75, extR), THREE.MathUtils.lerp(0.05, 0.58, extR), -0.16],
+        handR: [THREE.MathUtils.lerp(0.24, 0.75, extL), THREE.MathUtils.lerp(0.05, 0.58, extL), 0.16],
+        elbowPoleL: [-0.5, 0.25, -0.25],
+        elbowPoleR: [-0.5, 0.25, 0.25],
+        footDirL: [THREE.MathUtils.lerp(-0.35, -0.55, extL), THREE.MathUtils.lerp(-0.92, -0.82, extL), 0],
+        footDirR: [THREE.MathUtils.lerp(-0.35, -0.55, extR), THREE.MathUtils.lerp(-0.92, -0.82, extR), 0],
+      });
+      return;
+    }
+
+    case 'pigeon_pose': {
+      const fold = w * 0.05;
+      buildFloorPose(state, {
+        pelvis: [-0.08, 0.14, 0],
+        neck: [0.17 + fold * 1.1, 0.31 - fold * 0.7, 0],
+        torsoForwardHint: [0.65, -0.75, 0],
+        ankleL: [-0.9, 0.065, -0.07],
+        ankleR: [0.12, 0.075, -0.04],
+        kneePoleL: [0, 0.45, -0.15],
+        kneePoleR: [0.42, 0.05, 0.95],
+        handL: [0.49, 0.05, -0.02],
+        handR: [0.49, 0.05, 0.08],
+        elbowPoleL: [0.08, -0.96, -0.35],
+        elbowPoleR: [0.08, -0.96, 0.35],
+        footDirL: [-0.8, -0.55, 0],
+        footDirR: [-0.5, -0.6, -0.6],
       });
       return;
     }

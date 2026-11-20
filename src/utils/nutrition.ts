@@ -1,4 +1,4 @@
-import { ActivityLevel, BiologicalSex, GoalType, MealCategory, WorkoutLevel } from '../types';
+import type { ActivityLevel, BiologicalSex, GoalType, MealCategory, WorkoutLevel } from '../types/index.ts';
 
 export interface NutritionTargets {
   bmr: number;
@@ -63,7 +63,7 @@ export function calculateNutritionTargets(params: {
   const remainingCalories = Math.max(200, daily_calorie_target - proteinCalories - fatCalories);
   const carbs_target_g = Math.round(remainingCalories / 4);
 
-  const water_target_ml = Math.round(current_weight_kg * 35);
+  const water_target_ml = 2000;
   const heightMeters = height_cm / 100;
   const bmi = heightMeters > 0 ? Number((current_weight_kg / (heightMeters * heightMeters)).toFixed(1)) : 0;
 
@@ -77,6 +77,14 @@ export function calculateNutritionTargets(params: {
     water_target_ml,
     bmi,
   };
+}
+
+export function formatWaterLiters(ml: number): string {
+  const liters = Math.max(0, Number(ml) || 0) / 1000;
+  return `${liters.toLocaleString('pt-BR', {
+    minimumFractionDigits: liters % 1 === 0 ? 0 : 1,
+    maximumFractionDigits: 2,
+  })} L`;
 }
 
 export function getTodayISO(): string {

@@ -13,7 +13,7 @@ export function WeightEvolutionChart({
 
   if (data.length === 0) {
     return (
-      <div className="flex h-56 items-center justify-center rounded-xl border border-white/8 bg-[#0E1310] text-sm text-[#8F9E95]">
+      <div className="flex h-56 items-center justify-center rounded-xl border border-[#DCECE6] bg-[#F4FAF7] text-sm text-[#648482]">
         Registre seu peso para visualizar a curva de evolução.
       </div>
     );
@@ -61,15 +61,15 @@ export function WeightEvolutionChart({
 
   return (
     <div className="relative">
-      <div className="mb-3 flex items-center justify-between text-xs text-[#9AA8A0]">
+      <div className="mb-3 flex items-center justify-between text-xs text-[#5C7B79]">
         <span>
           Último registro:{' '}
-          <strong className="font-mono text-[#F4F7F5] tabular-nums">
+          <strong className="font-mono text-[#0F2A2A] tabular-nums">
             {activePoint.item.weight_kg.toFixed(1)} kg
           </strong>{' '}
           ({formatDateBR(activePoint.item.date)})
         </span>
-        <span className="font-mono tabular-nums text-[#22C55E]">
+        <span className="font-mono font-medium tabular-nums text-[#0C947E]">
           Meta: {targetWeight.toFixed(1)} kg
         </span>
       </div>
@@ -82,8 +82,8 @@ export function WeightEvolutionChart({
       >
         <defs>
           <linearGradient id="weightAreaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22C55E" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#22C55E" stopOpacity="0.0" />
+            <stop offset="0%" stopColor="#12BFA3" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#12BFA3" stopOpacity="0.0" />
           </linearGradient>
         </defs>
 
@@ -94,14 +94,14 @@ export function WeightEvolutionChart({
               y1={tick.y}
               x2={width - padR}
               y2={tick.y}
-              stroke="rgba(255,255,255,0.06)"
+              stroke="rgba(15,42,42,0.08)"
               strokeWidth="1"
             />
             <text
               x={padL - 8}
               y={tick.y + 4}
               textAnchor="end"
-              className="fill-[#7D8C84] font-mono text-[10px]"
+              className="fill-[#648482] font-mono text-[10px]"
             >
               {tick.val.toFixed(1)}
             </text>
@@ -113,8 +113,8 @@ export function WeightEvolutionChart({
           y1={targetY}
           x2={width - padR}
           y2={targetY}
-          stroke="#22C55E"
-          strokeOpacity="0.55"
+          stroke="#12BFA3"
+          strokeOpacity="0.6"
           strokeDasharray="4 4"
           strokeWidth="1.5"
         />
@@ -123,7 +123,7 @@ export function WeightEvolutionChart({
         {points.length > 1 && (
           <polyline
             fill="none"
-            stroke="#22C55E"
+            stroke="#12BFA3"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -138,6 +138,7 @@ export function WeightEvolutionChart({
               key={p.item.id || idx}
               onMouseEnter={() => setHoverIndex(idx)}
               onMouseLeave={() => setHoverIndex(null)}
+              onClick={() => setHoverIndex((prev) => (prev === idx ? null : idx))}
               className="cursor-pointer"
             >
               <circle cx={p.x} cy={p.y} r="14" fill="transparent" />
@@ -145,8 +146,8 @@ export function WeightEvolutionChart({
                 cx={p.x}
                 cy={p.y}
                 r={isActive ? 5.5 : 3.5}
-                fill={isActive ? '#22C55E' : '#111613'}
-                stroke="#22C55E"
+                fill={isActive ? '#12BFA3' : '#FFFFFF'}
+                stroke="#12BFA3"
                 strokeWidth="2"
               />
               {(idx === 0 || idx === points.length - 1 || points.length <= 8) && (
@@ -154,7 +155,7 @@ export function WeightEvolutionChart({
                   x={p.x}
                   y={height - 10}
                   textAnchor="middle"
-                  className="fill-[#7D8C84] font-mono text-[10px]"
+                  className="fill-[#648482] font-mono text-[10px]"
                 >
                   {formatDateBR(p.item.date).slice(0, 5)}
                 </text>
@@ -201,13 +202,13 @@ export function WeeklyCaloriesChart({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9AA8A0]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C7B79]">
         <span>
           {hovered.label.toUpperCase()} ({formatDateBR(hovered.date).slice(0, 5)}):{' '}
-          <strong className="font-mono text-[#F4F7F5] tabular-nums">{hovered.consumed} kcal</strong> ingeridas
+          <strong className="font-mono text-[#0F2A2A] tabular-nums">{hovered.consumed} kcal</strong> ingeridas
           {hovered.burned > 0 ? ` · ${hovered.burned} kcal queimadas` : ''}
         </span>
-        <span className="font-mono tabular-nums text-[#9AA8A0]">Meta: {targetVal} kcal</span>
+        <span className="font-mono tabular-nums text-[#5C7B79]">Meta: {targetVal} kcal</span>
       </div>
 
       <svg
@@ -226,10 +227,10 @@ export function WeeklyCaloriesChart({
                 y1={y}
                 x2={width - padR}
                 y2={y}
-                stroke="rgba(255,255,255,0.06)"
+                stroke="rgba(15,42,42,0.08)"
                 strokeWidth="1"
               />
-              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-[#7D8C84] font-mono text-[10px]">
+              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-[#648482] font-mono text-[10px]">
                 {val}
               </text>
             </g>
@@ -241,8 +242,8 @@ export function WeeklyCaloriesChart({
           y1={targetY}
           x2={width - padR}
           y2={targetY}
-          stroke="#22C55E"
-          strokeOpacity="0.45"
+          stroke="#12BFA3"
+          strokeOpacity="0.55"
           strokeDasharray="4 4"
           strokeWidth="1.5"
         />
@@ -261,6 +262,7 @@ export function WeeklyCaloriesChart({
               key={d.date}
               onMouseEnter={() => setHoverIdx(idx)}
               onMouseLeave={() => setHoverIdx(null)}
+              onClick={() => setHoverIdx((prev) => (prev === idx ? null : idx))}
               className="cursor-pointer"
             >
               <rect x={cx - slotW / 2} y={padT} width={slotW} height={innerH} fill="transparent" />
@@ -269,9 +271,9 @@ export function WeeklyCaloriesChart({
                 y={barY}
                 width={barW}
                 height={barH}
-                rx="4"
-                fill={overTarget ? '#F59E0B' : '#22C55E'}
-                fillOpacity={isHovered ? 1 : 0.82}
+                rx="6"
+                fill={overTarget ? '#F59E2D' : '#12BFA3'}
+                fillOpacity={isHovered ? 1 : 0.9}
               />
               {burnedH > 0 && (
                 <rect
@@ -279,16 +281,16 @@ export function WeeklyCaloriesChart({
                   y={burnedY}
                   width={8}
                   height={burnedH}
-                  rx="3"
-                  fill="#38BDF8"
-                  fillOpacity={isHovered ? 1 : 0.78}
+                  rx="4"
+                  fill="#FF9F2E"
+                  fillOpacity={isHovered ? 1 : 0.9}
                 />
               )}
               <text
                 x={cx}
                 y={height - 10}
                 textAnchor="middle"
-                className={`font-mono text-[10px] ${isHovered ? 'fill-[#F4F7F5]' : 'fill-[#7D8C84]'}`}
+                className={`font-mono text-[10px] ${isHovered ? 'fill-[#0F2A2A] font-semibold' : 'fill-[#648482]'}`}
               >
                 {d.label}
               </text>
@@ -307,7 +309,8 @@ export function CalorieProgressRing({
   consumed: number;
   target: number;
 }) {
-  const pct = target > 0 ? Math.min(100, Math.round((consumed / target) * 100)) : 0;
+  const rawPct = target > 0 ? Math.round((consumed / target) * 100) : 0;
+  const pct = Math.min(100, rawPct);
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (pct / 100) * circumference;
@@ -322,7 +325,7 @@ export function CalorieProgressRing({
             cy="60"
             r={radius}
             fill="none"
-            stroke="rgba(255,255,255,0.08)"
+            stroke="#E5F1EC"
             strokeWidth="10"
           />
           <circle
@@ -330,7 +333,7 @@ export function CalorieProgressRing({
             cy="60"
             r={radius}
             fill="none"
-            stroke={consumed > target * 1.08 ? '#F59E0B' : '#22C55E'}
+            stroke={consumed > target * 1.08 ? '#F59E2D' : '#12BFA3'}
             strokeWidth="10"
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -339,16 +342,16 @@ export function CalorieProgressRing({
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-mono text-xl font-semibold text-[#F4F7F5] tabular-nums">{pct}%</span>
-          <span className="text-[11px] text-[#8F9E95]">da meta</span>
+          <span className="font-mono text-xl font-bold text-[#0F2A2A] tabular-nums">{rawPct}%</span>
+          <span className="text-[11px] text-[#648482]">da meta</span>
         </div>
       </div>
 
       <div className="space-y-1">
-        <div className="font-mono text-2xl font-semibold text-[#F4F7F5] tabular-nums">
-          {consumed.toLocaleString('pt-BR')} <span className="text-sm font-normal text-[#8F9E95]">/ {target.toLocaleString('pt-BR')} kcal</span>
+        <div className="font-mono text-2xl font-bold text-[#0F2A2A] tabular-nums">
+          {consumed.toLocaleString('pt-BR')} <span className="text-sm font-normal text-[#648482]">/ {target.toLocaleString('pt-BR')} kcal</span>
         </div>
-        <p className="text-sm text-[#9AA8A0]">
+        <p className="text-sm text-[#4B6B68]">
           {consumed <= target
             ? `Restam ${remaining.toLocaleString('pt-BR')} kcal disponíveis hoje`
             : `${(consumed - target).toLocaleString('pt-BR')} kcal acima da meta diária`}
@@ -381,13 +384,13 @@ export function WeeklyWorkoutBarChart({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9AA8A0]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C7B79]">
         <span>
           {active.label.toUpperCase()} ({formatDateBR(active.date).slice(0, 5)}):{' '}
-          <strong className="font-mono text-[#F4F7F5] tabular-nums">{active.minutes} min</strong> ·{' '}
-          <span className="text-[#22C55E] font-mono tabular-nums">{active.calories} kcal</span>
+          <strong className="font-mono text-[#0F2A2A] tabular-nums">{active.minutes} min</strong> ·{' '}
+          <span className="font-mono font-medium text-[#D97706] tabular-nums">{active.calories} kcal</span>
         </span>
-        <span className="font-mono text-[#8F9E95] tabular-nums">
+        <span className="font-mono text-[#648482] tabular-nums">
           {active.sessions} {active.sessions === 1 ? 'treino' : 'treinos'}
         </span>
       </div>
@@ -398,8 +401,8 @@ export function WeeklyWorkoutBarChart({
           const y = padT + t * innerH;
           return (
             <g key={i}>
-              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-[#7D8C84] font-mono text-[10px]">
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="rgba(15,42,42,0.08)" strokeWidth="1" />
+              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-[#648482] font-mono text-[10px]">
                 {val}m
               </text>
             </g>
@@ -416,6 +419,7 @@ export function WeeklyWorkoutBarChart({
               key={d.date}
               onMouseEnter={() => setHoverIdx(idx)}
               onMouseLeave={() => setHoverIdx(null)}
+              onClick={() => setHoverIdx((prev) => (prev === idx ? null : idx))}
               className="cursor-pointer"
             >
               <rect x={cx - slotW / 2} y={padT} width={slotW} height={innerH} fill="transparent" />
@@ -424,15 +428,15 @@ export function WeeklyWorkoutBarChart({
                 y={y}
                 width={barW}
                 height={barH}
-                rx="4"
-                fill={d.minutes > 0 ? '#22C55E' : 'rgba(255,255,255,0.1)'}
-                fillOpacity={isHovered ? 1 : 0.85}
+                rx="6"
+                fill={d.minutes > 0 ? '#12BFA3' : '#DCECE6'}
+                fillOpacity={isHovered ? 1 : 0.9}
               />
               <text
                 x={cx}
                 y={height - 8}
                 textAnchor="middle"
-                className={`font-mono text-[10px] ${isHovered ? 'fill-[#F4F7F5]' : 'fill-[#7D8C84]'}`}
+                className={`font-mono text-[10px] ${isHovered ? 'fill-[#0F2A2A] font-semibold' : 'fill-[#648482]'}`}
               >
                 {d.label}
               </text>
@@ -467,13 +471,13 @@ export function MonthlyWorkoutChart({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9AA8A0]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C7B79]">
         <span>
           {active.label}:{' '}
-          <strong className="font-mono text-[#F4F7F5] tabular-nums">{active.calories} kcal</strong> ·{' '}
-          <span className="font-mono tabular-nums text-[#22C55E]">{active.minutes} min</span>
+          <strong className="font-mono text-[#0F2A2A] tabular-nums">{active.calories} kcal</strong> ·{' '}
+          <span className="font-mono font-medium tabular-nums text-[#0C947E]">{active.minutes} min</span>
         </span>
-        <span className="font-mono text-[#8F9E95] tabular-nums">
+        <span className="font-mono text-[#648482] tabular-nums">
           {active.sessions} sessões
         </span>
       </div>
@@ -484,8 +488,8 @@ export function MonthlyWorkoutChart({
           const y = padT + t * innerH;
           return (
             <g key={i}>
-              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-[#7D8C84] font-mono text-[10px]">
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="rgba(15,42,42,0.08)" strokeWidth="1" />
+              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-[#648482] font-mono text-[10px]">
                 {val}
               </text>
             </g>
@@ -502,6 +506,7 @@ export function MonthlyWorkoutChart({
               key={d.label}
               onMouseEnter={() => setHoverIdx(idx)}
               onMouseLeave={() => setHoverIdx(null)}
+              onClick={() => setHoverIdx((prev) => (prev === idx ? null : idx))}
               className="cursor-pointer"
             >
               <rect x={cx - slotW / 2} y={padT} width={slotW} height={innerH} fill="transparent" />
@@ -511,14 +516,14 @@ export function MonthlyWorkoutChart({
                 width={barW}
                 height={barH}
                 rx="6"
-                fill={d.calories > 0 ? '#22C55E' : 'rgba(255,255,255,0.1)'}
-                fillOpacity={isHovered ? 1 : 0.8}
+                fill={d.calories > 0 ? '#FF9F2E' : '#DCECE6'}
+                fillOpacity={isHovered ? 1 : 0.9}
               />
               <text
                 x={cx}
                 y={height - 8}
                 textAnchor="middle"
-                className={`font-mono text-[10px] ${isHovered ? 'fill-[#F4F7F5]' : 'fill-[#7D8C84]'}`}
+                className={`font-mono text-[10px] ${isHovered ? 'fill-[#0F2A2A] font-semibold' : 'fill-[#648482]'}`}
               >
                 {d.label}
               </text>

@@ -9,12 +9,26 @@
 }
 
 @layer base {
+  html,
+  body {
+    overflow-x: hidden;
+    touch-action: manipulation;
+  }
+
   html {
     font-family: var(--font-sans);
-    background-color: #0a0d0b;
-    color: #f4f7f5;
-    color-scheme: dark;
+    background: linear-gradient(165deg, #EBF8F2 0%, #F4FBF8 42%, #FAFDFC 100%);
+    background-color: #F2F9F6;
+    color: #0F2A2A;
+    color-scheme: light;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  html.dark {
+    background: linear-gradient(165deg, #051011 0%, #071618 48%, #0A1E20 100%);
+    background-color: #061314;
+    color: #F2FAFA;
+    color-scheme: dark;
   }
 
   h1, h2, h3, h4 {
@@ -25,8 +39,21 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
@@ -39,20 +66,223 @@
   }
 }
 
+/* Dark theme semantic overrides across surfaces, borders, inputs, typography, and charts */
+.dark body {
+  background-color: #061314;
+  color: #F2FAFA;
+}
+
+.dark .bg-white {
+  background-color: #0C1E20;
+}
+
+.dark .bg-white\/95,
+.dark .bg-white\/92,
+.dark .bg-white\/90 {
+  background-color: rgba(12, 30, 32, 0.94);
+}
+
+.dark .bg-white\/85 {
+  background-color: rgba(10, 25, 27, 0.88);
+}
+
+.dark .bg-\[\#F4FAF7\],
+.dark .bg-\[\#EDF7F3\],
+.dark .bg-\[\#EEF7F3\],
+.dark .bg-\[\#F8FCFA\],
+.dark .bg-\[\#F2F9F6\],
+.dark .bg-\[\#FFFCF7\],
+.dark .bg-\[\#EFF7F3\],
+.dark .bg-\[\#E7F4EF\] {
+  background-color: #081719;
+}
+
+.dark .bg-\[\#E3F7F2\],
+.dark .bg-\[\#EAF9F4\],
+.dark .bg-\[\#EBF9F6\],
+.dark .bg-\[\#F2FBF8\],
+.dark .bg-\[\#EBF7F3\],
+.dark .bg-\[\#DCF4EE\] {
+  background-color: rgba(18, 191, 163, 0.14);
+}
+
+.dark .bg-\[\#E5F1EC\],
+.dark .bg-\[\#E3EFEA\],
+.dark .bg-\[\#DCECE6\],
+.dark .bg-\[\#EEF5F2\] {
+  background-color: #122B2E;
+}
+
+.dark .bg-\[\#FFF9F0\],
+.dark .bg-\[\#FFF8EB\],
+.dark .bg-\[\#FFF4E2\],
+.dark .bg-\[\#FEF0D9\] {
+  background-color: rgba(245, 158, 45, 0.13);
+}
+
+.dark .bg-sky-50,
+.dark .bg-sky-50\/70,
+.dark .bg-sky-50\/60 {
+  background-color: rgba(14, 165, 233, 0.12);
+}
+
+.dark .bg-sky-100 {
+  background-color: rgba(14, 165, 233, 0.2);
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.12);
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 45, 0.15);
+}
+
+.dark .text-\[\#0F2A2A\] {
+  color: #F2FAFA;
+}
+
+.dark .text-\[\#2E4A48\] {
+  color: #D2E8E6;
+}
+
+.dark .text-\[\#3E5C5B\],
+.dark .text-\[\#4B6B68\] {
+  color: #B4CECC;
+}
+
+.dark .text-\[\#5C7B79\],
+.dark .text-\[\#648482\],
+.dark .text-\[\#7C9A98\] {
+  color: #8AA8A6;
+}
+
+.dark .text-\[\#0C947E\],
+.dark .text-\[\#0B7C6A\],
+.dark .text-\[\#0B8A74\],
+.dark .text-\[\#0D9B84\] {
+  color: #2EE6CB;
+}
+
+.dark .text-\[\#D97706\],
+.dark .text-\[\#9A5B13\],
+.dark .text-\[\#7A6245\] {
+  color: #FBBF49;
+}
+
+.dark .text-sky-600,
+.dark .text-sky-700 {
+  color: #7DD3FC;
+}
+
+.dark .text-red-700,
+.dark .text-red-800 {
+  color: #FCA5A5;
+}
+
+.dark .text-amber-800 {
+  color: #FDE68A;
+}
+
+.dark .border-\[\#E1EEE9\],
+.dark .border-\[\#E5F1EC\],
+.dark .border-\[\#DCECE6\],
+.dark .border-\[\#EEF5F2\] {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.dark .border-\[\#D3E5DF\],
+.dark .border-\[\#CBE4DB\] {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.dark .border-\[\#BCE6DC\],
+.dark .border-\[\#BFE6DC\] {
+  border-color: rgba(18, 191, 163, 0.36);
+}
+
+.dark .border-\[\#F7E3C4\],
+.dark .border-\[\#F2E5CF\],
+.dark .border-\[\#F7D79C\] {
+  border-color: rgba(245, 158, 45, 0.28);
+}
+
+.dark .border-sky-200 {
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
+.dark .border-red-200 {
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.dark .divide-\[\#E5F1EC\] > :not(:last-child),
+.dark .divide-\[\#EEF5F2\] > :not(:last-child) {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .hover\:bg-\[\#F2F9F6\]:hover,
+.dark .hover\:bg-\[\#F4FAF7\]:hover,
+.dark .hover\:bg-\[\#F4FAF7\]\/60:hover,
+.dark .hover\:bg-\[\#E7F4EF\]:hover,
+.dark .hover\:bg-\[\#EDF7F3\]:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.dark .hover\:bg-sky-100:hover,
+.dark .hover\:bg-sky-50:hover {
+  background-color: rgba(14, 165, 233, 0.2);
+}
+
+.dark .hover\:text-\[\#0F2A2A\]:hover {
+  color: #FFFFFF;
+}
+
+.dark .fill-\[\#648482\] {
+  fill: #8AA8A6;
+}
+
+.dark .fill-\[\#0F2A2A\] {
+  fill: #F2FAFA;
+}
+
+.dark svg line[stroke="rgba(15,42,42,0.08)"] {
+  stroke: rgba(255, 255, 255, 0.09);
+}
+
+.dark svg circle[stroke="#E5F1EC"] {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.dark svg circle[fill="#FFFFFF"] {
+  fill: #0C1E20;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0d120f;
+  background: #EBF5F1;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #061314;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #232d27;
+  background: #C4DFD6;
   border-radius: 3px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #14363A;
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #2f3e35;
+  background: #9CC7B9;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #1E4C52;
 }

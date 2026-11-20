@@ -32,10 +32,14 @@ export interface UserProfile {
 export interface MealFoodItem {
   name: string;
   portion: string;
+  reference_portion?: string;
+  source?: string;
   calories: number;
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  fiber_g?: number;
+  data_available?: boolean;
 }
 
 export interface MealEntry {
@@ -66,6 +70,7 @@ export interface GeneratedMealPlanItem {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  fiber_g?: number;
 }
 
 export interface MealPlan {
@@ -77,6 +82,7 @@ export interface MealPlan {
   total_protein_g: number;
   total_carbs_g: number;
   total_fat_g: number;
+  total_fiber_g?: number;
   meals: GeneratedMealPlanItem[];
   notes: string;
   created_at: string;
@@ -291,6 +297,10 @@ export type TutorialArchetype =
   | 'renegade_row'
   | 'arm_circles'
   | 'torso_twist'
+  | 'knee_circles'
+  | 'bird_dog'
+  | 'box_pushup'
+  | 'pigeon_pose'
   | 'cat_camel'
   | 'child_pose'
   | 'cobra_stretch'
@@ -337,4 +347,60 @@ export interface AppConfigInfo {
   supabaseServiceRole?: boolean;
   geminiConfigured: boolean;
   trainingMigrationPending?: boolean;
+}
+
+export type NutritionDayStatus = 'on_target' | 'above' | 'below' | 'empty';
+
+export interface NutritionHistoryDay {
+  date: string;
+  meals: MealEntry[];
+  meals_count: number;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  water_ml: number;
+  target_calories: number;
+  status: NutritionDayStatus;
+}
+
+export interface NutritionHistorySummary {
+  days_requested: number;
+  from_date: string;
+  to_date: string;
+  logged_days: number;
+  total_meals: number;
+  days_on_target: number;
+  avg_calories: number;
+  avg_protein_g: number;
+  avg_carbs_g: number;
+  avg_fat_g: number;
+  avg_water_ml: number;
+  target_calories: number;
+}
+
+export interface NutritionHistoryResponse {
+  summary: NutritionHistorySummary;
+  days: NutritionHistoryDay[];
+  target_calories: number;
+  water_target_ml: number;
+}
+
+export interface NutritionBackupPayload {
+  version: number;
+  exported_at: string;
+  app: string;
+  meals: MealEntry[];
+  water_logs: WaterLog[];
+  meal_plans: MealPlan[];
+  weight_logs: WeightLog[];
+}
+
+export interface NutritionRestoreResult {
+  meals_added: number;
+  meals_skipped: number;
+  plans_added: number;
+  water_days_merged: number;
+  weights_added: number;
 }

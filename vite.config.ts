@@ -11,14 +11,14 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+        includeAssets: ['app-logo.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           id: '/',
           name: 'PRATO & TREINO',
           short_name: 'Prato&Treino',
           description: 'Sua evolução começa aqui. Alimentação personalizada, treinos em casa e Personal Trainer IA.',
-          theme_color: '#0A0D0B',
-          background_color: '#0A0D0B',
+          theme_color: '#061314',
+          background_color: '#061314',
           display: 'standalone',
           orientation: 'portrait-primary',
           start_url: '/',
@@ -81,14 +81,13 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
     },
     server: {

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   protein_target_g INTEGER NOT NULL DEFAULT 150,
   carbs_target_g INTEGER NOT NULL DEFAULT 200,
   fat_target_g INTEGER NOT NULL DEFAULT 60,
-  water_target_ml INTEGER NOT NULL DEFAULT 2700,
+  water_target_ml INTEGER NOT NULL DEFAULT 2000,
   avatar_url TEXT,
   onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

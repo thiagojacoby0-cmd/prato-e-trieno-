@@ -1,4 +1,4 @@
-import type { TutorialArchetype, WorkoutCategoryName, WorkoutExercise } from '../types';
+import type { TutorialArchetype, WorkoutCategoryName, WorkoutExercise } from '../types/index.ts';
 
 export interface CategoryMeta {
   name: WorkoutCategoryName;
@@ -365,7 +365,7 @@ export const EXERCISE_LIBRARY: Record<string, WorkoutExercise> = {
     id: 'main-glute-bridge',
     name: 'Elevação Pélvica com Contração',
     muscle_group: 'Glúteos e Posteriores',
-    target_muscles: ['glutes', 'quadriceps'],
+    target_muscles: ['glutes', 'hamstrings'],
     sets: 4,
     reps_or_duration: '16 reps (ou 45s)',
     duration_seconds: 45,
@@ -596,7 +596,7 @@ export const EXERCISE_LIBRARY: Record<string, WorkoutExercise> = {
     id: 'cool-hamstring',
     name: 'Alongamento de Posteriores',
     muscle_group: 'Posteriores de Coxa e Panturrilha',
-    target_muscles: ['quadriceps', 'calves', 'back'],
+    target_muscles: ['hamstrings', 'calves', 'back'],
     sets: 1,
     reps_or_duration: '40s contínuo',
     duration_seconds: 40,
@@ -620,6 +620,66 @@ export const EXERCISE_LIBRARY: Record<string, WorkoutExercise> = {
     correct_position: 'Perna traseira estendida e olhar seguindo a mão que sobe.',
     common_mistakes: 'Deixar o joelho dianteiro colapsar para dentro.',
     demo_archetype: 'mobility_twist',
+    stage: 'cooldown',
+  },
+  'warm-knee-circles': {
+    id: 'warm-knee-circles',
+    name: 'Círculo com os Joelhos',
+    muscle_group: 'Joelhos e Tornozelos',
+    target_muscles: ['quadriceps', 'calves'],
+    sets: 1,
+    reps_or_duration: '30s contínuo',
+    duration_seconds: 30,
+    rest_seconds: 15,
+    instructions: 'Com os pés juntos e mãos apoiadas nos joelhos, faça círculos suaves em uma direção e inverta na metade do tempo.',
+    correct_position: 'Coluna alinhada, pés firmes no chão e movimento fluido sem forçar.',
+    common_mistakes: 'Tirar os calcanhares do solo ou dobrar demais as costas.',
+    demo_archetype: 'knee_circles',
+    stage: 'warmup',
+  },
+  'main-box-pushup': {
+    id: 'main-box-pushup',
+    name: 'Flexão na Caixa',
+    muscle_group: 'Peitoral e Tríceps',
+    target_muscles: ['chest', 'arms', 'shoulders'],
+    sets: 3,
+    reps_or_duration: '12 reps',
+    duration_seconds: 35,
+    rest_seconds: 20,
+    instructions: 'Em quatro apoios com joelhos sob o quadril, flexione os cotovelos levando o peito em direção ao chão e empurre de volta.',
+    correct_position: 'Mãos alinhadas aos ombros e abdômen contraído durante toda a descida.',
+    common_mistakes: 'Abrir os cotovelos excessivamente ou deixar a lombar arqueada.',
+    demo_archetype: 'box_pushup',
+    stage: 'main',
+  },
+  'main-bird-dog': {
+    id: 'main-bird-dog',
+    name: 'Pássaro-cão',
+    muscle_group: 'Core, Lombar e Glúteos',
+    target_muscles: ['core', 'back', 'glutes'],
+    sets: 3,
+    reps_or_duration: '14 reps',
+    duration_seconds: 40,
+    rest_seconds: 20,
+    instructions: 'Em quatro apoios, estenda simultaneamente um braço à frente e a perna oposta atrás mantendo o quadril nivelado.',
+    correct_position: 'Olhar voltado para o tapete e tronco totalmente estável sem balançar.',
+    common_mistakes: 'Subir a perna acima da linha do quadril arqueando a lombar.',
+    demo_archetype: 'bird_dog',
+    stage: 'main',
+  },
+  'cool-pigeon-pose': {
+    id: 'cool-pigeon-pose',
+    name: 'Postura do Pombo',
+    muscle_group: 'Glúteos e Flexores do Quadril',
+    target_muscles: ['glutes', 'quadriceps'],
+    sets: 1,
+    reps_or_duration: '30s cada lado',
+    duration_seconds: 30,
+    rest_seconds: 10,
+    instructions: 'Posicione uma perna dobrada à frente e estenda a outra atrás sobre o tapete, relaxando o quadril em direção ao solo.',
+    correct_position: 'Quadril nivelado e peito aberto sustentado pelas mãos.',
+    common_mistakes: 'Tombamento lateral excessivo sobre o glúteo da perna frontal.',
+    demo_archetype: 'pigeon_pose',
     stage: 'cooldown',
   },
 };
@@ -675,6 +735,10 @@ export function inferArchetypeFromName(name: string): TutorialArchetype {
   if (n.includes('torção russa') || n.includes('russian')) return 'russian_twist';
   if (n.includes('elevação de pernas') || n.includes('infra')) return 'leg_raise';
   if (n.includes('abdominal') || n.includes('supra')) return 'crunch';
+  if (n.includes('círculo com os joelhos') || n.includes('circulo com os joelhos') || n.includes('joelhos')) return 'knee_circles';
+  if (n.includes('pássaro') || n.includes('passaro') || n.includes('bird dog')) return 'bird_dog';
+  if (n.includes('na caixa') || n.includes('ajoelhada')) return 'box_pushup';
+  if (n.includes('pombo') || n.includes('pigeon')) return 'pigeon_pose';
   if (n.includes('círculos') || n.includes('ombros e braços')) return 'arm_circles';
   if (n.includes('rotação dinâmica') || n.includes('tronco')) return 'torso_twist';
   if (n.includes('gato') || n.includes('camelo')) return 'cat_camel';

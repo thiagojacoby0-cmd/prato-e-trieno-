@@ -6,6 +6,7 @@ import {
   Calendar,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Copy,
   Dumbbell,
@@ -15,11 +16,15 @@ import {
   Mic,
   Play,
   Plus,
+  Settings,
   Sliders,
   Sparkles,
   Star,
   Trash2,
 } from 'lucide-react';
+import heroAmberImg from '../assets/images/workout_hero_amber_1795211659230.jpg';
+import heroMintImg from '../assets/images/workout_hero_mint_1795211659190.jpg';
+import squatAmberImg from '../assets/images/workout_squat_amber_1795211660002.jpg';
 import { apiRequest } from '../services/apiClient';
 import type {
   TrainingPlan,
@@ -35,7 +40,7 @@ import { formatDateBR, WORKOUT_LEVEL_LABELS } from '../utils/nutrition';
 import { WorkoutPlayerModal } from '../components/WorkoutPlayerModal';
 import { WorkoutTutorialModal } from '../components/WorkoutTutorialModal';
 import { MonthlyWorkoutChart, WeeklyWorkoutBarChart, WeightEvolutionChart } from '../components/InteractiveCharts';
-import { EXERCISE_LIBRARY, WORKOUT_CATEGORIES } from '../database/exerciseLibrary';
+import { EXERCISE_LIBRARY, pickExercise, WORKOUT_CATEGORIES } from '../database/exerciseLibrary';
 import { useAuth } from '../hooks/useAuth';
 
 interface WorkoutStatsPayload {
@@ -146,6 +151,7 @@ export function WorkoutsPage() {
   // Modais Ativos
   const [activeWorkout, setActiveWorkout] = useState<WorkoutProgram | null>(null);
   const [activePlanContext, setActivePlanContext] = useState<{ planId: string; dayNumber: number } | null>(null);
+  const [prototypeActive, setPrototypeActive] = useState(false);
   const [tutorialWorkout, setTutorialWorkout] = useState<WorkoutProgram | null>(null);
 
   // Planos Form State
@@ -228,8 +234,61 @@ export function WorkoutsPage() {
   };
 
   const handleStartWorkout = (workout: WorkoutProgram, planCtx: { planId: string; dayNumber: number } | null = null) => {
+    setPrototypeActive(false);
     setActivePlanContext(planCtx);
     setActiveWorkout(workout);
+  };
+
+  const prototypeExercises = useMemo(
+    () => [
+      pickExercise('main-squat', {
+        name: 'Agachamento (Squat)',
+        sets: 1,
+        reps_or_duration: '10 reps',
+        duration_seconds: 30,
+        rest_seconds: 12,
+      }),
+      pickExercise('main-pushup', {
+        name: 'Flexão de braço (Push-up)',
+        sets: 1,
+        reps_or_duration: '10 reps',
+        duration_seconds: 30,
+        rest_seconds: 12,
+      }),
+      pickExercise('main-crunch', {
+        name: 'Abdominal tradicional (Crunch)',
+        sets: 1,
+        reps_or_duration: '12 reps',
+        duration_seconds: 35,
+        rest_seconds: 12,
+      }),
+    ],
+    []
+  );
+
+  const handleStartPrototype = (startIndex = 0) => {
+    const ordered =
+      startIndex > 0
+        ? [...prototypeExercises.slice(startIndex), ...prototypeExercises.slice(0, startIndex)]
+        : prototypeExercises;
+    const protoWorkout: WorkoutProgram = {
+      id: 'proto-3-exercicios',
+      user_id: null,
+      title: 'Protótipo · 3 Demonstrações',
+      category: 'Corpo inteiro',
+      level: 'iniciante',
+      duration_minutes: 4,
+      estimated_calories: 45,
+      equipment: ['Peso corporal', 'Tapete'],
+      muscle_focus: ['Quadríceps', 'Peito', 'Abdômen'],
+      description: 'Demonstrações iniciais em 2D vetorial com contagem regressiva de 3s e repetições sincronizadas.',
+      warmup: [],
+      exercises: ordered,
+      cooldown: [],
+    };
+    setPrototypeActive(true);
+    setActivePlanContext(null);
+    setActiveWorkout(protoWorkout);
   };
 
   const handleCompleteWorkout = async (
@@ -436,10 +495,10 @@ export function WorkoutsPage() {
   if (loading && workouts.length === 0) {
     return (
       <div className="space-y-4">
-        <div className="h-48 animate-pulse rounded-2xl border border-white/8 bg-[#111613]" />
+        <div className="h-48 animate-pulse rounded-3xl border border-[#E1EEE9] bg-white" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-2xl border border-white/8 bg-[#111613]" />
+            <div key={i} className="h-24 animate-pulse rounded-3xl border border-[#E1EEE9] bg-white" />
           ))}
         </div>
       </div>
@@ -455,12 +514,12 @@ export function WorkoutsPage() {
   return (
     <div className="space-y-6">
       {hubError && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
           <span>{hubError}</span>
           <button
             type="button"
             onClick={() => void loadHub()}
-            className="rounded-lg border border-rose-400/40 bg-[#0A0D0B] px-3 py-1.5 font-medium text-rose-200 hover:bg-white/5"
+            className="rounded-xl border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100"
           >
             Tentar novamente
           </button>
@@ -469,9 +528,9 @@ export function WorkoutsPage() {
 
       {/* Banner discreto opcional caso as tabelas 002 ainda não tenham sido coladas no Supabase */}
       {migrationPending && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs text-amber-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#F7D79C] bg-[#FFF8EB] px-4 py-3 text-xs text-[#9A5B13]">
           <span>
-            Seus treinos já funcionam perfeitamente aqui. Para sincronizar Planos e Lembretes direto no Postgres do Supabase, execute o script complementar <code className="font-mono text-amber-300">002_training_module.sql</code> no SQL Editor.
+            Seus treinos já funcionam perfeitamente aqui. Para sincronizar Planos e Lembretes direto no Postgres do Supabase, execute o script complementar <code className="font-mono font-semibold text-[#D97706]">002_training_module.sql</code> no SQL Editor.
           </span>
           <button
             type="button"
@@ -480,22 +539,22 @@ export function WorkoutsPage() {
               setSqlCopied(true);
               setTimeout(() => setSqlCopied(false), 3000);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/40 bg-[#0A0D0B] px-3 py-1.5 font-medium text-amber-200 hover:bg-white/5"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#F7D79C] bg-white px-3 py-1.5 font-semibold text-[#D97706] hover:bg-[#FFF4E2]"
           >
-            {sqlCopied ? <Check className="h-3.5 w-3.5 text-[#22C55E]" /> : <Copy className="h-3.5 w-3.5" />}
+            {sqlCopied ? <Check className="h-3.5 w-3.5 text-[#0C947E]" /> : <Copy className="h-3.5 w-3.5" />}
             {sqlCopied ? 'SQL copiado!' : 'Copiar SQL complementar'}
           </button>
         </div>
       )}
 
       {/* Sub-navegação do Módulo TREINO */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/8 bg-[#111613] p-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex w-full items-center gap-1.5 overflow-x-auto rounded-2xl border border-[#DCECE6] bg-white/95 p-1.5 shadow-sm no-scrollbar sm:w-auto">
           {[
             { id: 'home' as const, label: 'Treinar', icon: Dumbbell },
             { id: 'plans' as const, label: 'Planos 7-60d', icon: Layers },
             { id: 'custom' as const, label: 'Personalizar', icon: Sliders },
-            { id: 'evolution' as const, label: 'Evolução & Lembretes', icon: Activity },
+            { id: 'evolution' as const, label: 'Evolução', icon: Activity },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = subTab === tab.id;
@@ -504,8 +563,8 @@ export function WorkoutsPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setSubTab(tab.id)}
-                className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
-                  active ? 'bg-[#22C55E] text-[#06120A]' : 'text-[#9AA8A0] hover:text-white'
+                className={`inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
+                  active ? 'bg-[#15C8AA] text-[#062924] shadow-sm' : 'text-[#4B6B68] hover:bg-[#F2F9F6] hover:text-[#0F2A2A]'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -515,22 +574,22 @@ export function WorkoutsPage() {
           })}
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-[#9AA8A0]">
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/8 bg-[#111613] px-3 py-1.5">
-            <Award className="h-3.5 w-3.5 text-[#22C55E]" />
-            Sequência: <strong className="font-mono text-[#F4F7F5] tabular-nums">{stats?.streak_days || 0}d</strong>
+        <div className="flex items-center justify-between gap-2.5 text-xs text-[#4B6B68] sm:justify-end">
+          <span className="inline-flex min-h-[40px] items-center gap-1.5 rounded-2xl border border-[#E1EEE9] bg-white px-4 py-1.5 shadow-sm">
+            <Award className="h-4 w-4 text-[#F59E2D]" />
+            Sequência: <strong className="font-mono font-bold text-[#D97706] tabular-nums">{stats?.streak_days || 0}d</strong>
           </span>
           {preferences && (
             <button
               type="button"
               onClick={() => handleUpdatePreferences({ voice_enabled: !preferences.voice_enabled })}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ${
+              className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-2xl border px-4 py-1.5 font-medium shadow-sm transition-colors ${
                 preferences.voice_enabled
-                  ? 'border-[#22C55E]/40 bg-[#22C55E]/12 text-[#22C55E]'
-                  : 'border-white/8 bg-[#111613] text-[#8F9E95]'
+                  ? 'border-[#BCE6DC] bg-white text-[#0F2A2A] hover:bg-[#F4FAF7]'
+                  : 'border-[#E1EEE9] bg-white text-[#5C7B79]'
               }`}
             >
-              <Mic className="h-3.5 w-3.5" />
+              <Mic className={`h-4 w-4 ${preferences.voice_enabled ? 'text-[#0C947E]' : 'text-[#648482]'}`} />
               Voz {preferences.voice_enabled ? 'ativa' : 'muda'}
             </button>
           )}
@@ -540,129 +599,289 @@ export function WorkoutsPage() {
       {/* === TAB 1: TELA PRINCIPAL DE TREINAMENTO === */}
       {subTab === 'home' && (
         <div className="space-y-6">
-          {/* Hero: Treino Recomendado para Hoje + Progresso Semanal + Calendário */}
-          <section className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-            {/* Treino Recomendado */}
-            <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[#22C55E]/25 bg-[#111613] p-6 lg:col-span-7">
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#22C55E]">
-                    Treino recomendado para hoje
-                  </span>
-                  {trainingPlan && (
-                    <span className="font-mono text-xs text-[#9AA8A0]">
-                      Dia {trainingPlan.current_day}/{trainingPlan.duration_days} · {trainingPlan.title}
+          {/* Grade Principal: Coluna Esquerda (Hero + Recomendado) + Coluna Direita (Calendário + Gráfico Treino + Resumo) */}
+          <section className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:items-start">
+            {/* Coluna Esquerda (8 cols) */}
+            <div className="space-y-5 lg:col-span-8">
+              {/* Card Principal: Iniciar Treino + 2 Previews Visuais + Botão Largo + 3 Mini Cards */}
+              <div className="rounded-3xl border border-[#E1EEE9] bg-white p-5 shadow-[0_12px_32px_-16px_rgba(15,42,42,0.1)] sm:p-6">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:items-center">
+                  <div className="md:col-span-6">
+                    <span className="inline-block rounded-xl bg-[#E3F7F2] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#0C947E]">
+                      Protótipo 2D Interativo
                     </span>
-                  )}
+                    <h2 className="mt-2.5 font-display text-3xl font-bold tracking-tight text-[#0F2A2A]">
+                      Iniciar Treino
+                    </h2>
+                    <p className="mt-2 text-xs leading-relaxed text-[#4B6B68] sm:text-sm">
+                      Teste o personagem 2D articulado em tamanho grande com contador sincronizado, temporizador e tela de descanso.
+                    </p>
+                  </div>
+
+                  {/* Dois cards visuais lado a lado no topo direito */}
+                  <div className="grid grid-cols-2 gap-3 md:col-span-6">
+                    <button
+                      type="button"
+                      onClick={() => handleStartPrototype(0)}
+                      className="group relative h-36 overflow-hidden rounded-2xl bg-gradient-to-br from-[#FFB03B] to-[#F58516] text-left shadow-sm transition-transform hover:scale-[1.01]"
+                    >
+                      <img
+                        src={heroAmberImg}
+                        alt="Séries de força"
+                        className="h-full w-full scale-[1.16] object-cover object-center transition-transform duration-300 group-hover:scale-[1.2]"
+                      />
+                      <span className="absolute left-2.5 top-2.5 rounded-lg bg-black/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
+                        Séries
+                      </span>
+                      <span className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-[#D97706] shadow-xs">
+                        <ChevronDown className="h-4 w-4" />
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        recommendedWorkout ? setTutorialWorkout(recommendedWorkout) : handleStartPrototype(0)
+                      }
+                      className="group relative h-36 overflow-hidden rounded-2xl bg-gradient-to-br from-[#DCF8EE] to-[#B6EFE0] text-left shadow-sm transition-transform hover:scale-[1.01]"
+                    >
+                      <img
+                        src={heroMintImg}
+                        alt="Movimento guiado"
+                        className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <span className="absolute left-2.5 top-2.5 rounded-lg bg-white/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0F2A2A] shadow-xs backdrop-blur-xs">
+                        Guia 2D
+                      </span>
+                      <div className="absolute bottom-2.5 left-2.5 rounded-xl bg-white/95 px-2.5 py-1 shadow-xs">
+                        <p className="font-mono text-[10px] font-bold text-[#D97706]">3s · 10x</p>
+                        <p className="text-[9px] font-semibold text-[#5C7B79]">Ritmo guiado</p>
+                      </div>
+                      <span className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#12BFA3] text-white shadow-xs">
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
-                {recommendedWorkout ? (
-                  <>
-                    <h2 className="mt-2 font-display text-2xl font-bold text-[#F4F7F5] sm:text-3xl">
-                      {recommendedWorkout.title}
-                    </h2>
-                    <p className="mt-2 max-w-xl text-sm text-[#C2CCC6]">
-                      {recommendedWorkout.description}
-                    </p>
+                {/* CTA Largo Esmeralda */}
+                <button
+                  type="button"
+                  onClick={() => handleStartPrototype(0)}
+                  className="mt-5 flex min-h-[48px] w-full items-center justify-center gap-2.5 rounded-2xl bg-[#15C8AA] px-6 py-3.5 text-sm font-bold text-[#062924] shadow-sm transition-colors hover:bg-[#10B599]"
+                >
+                  <Play className="h-4 w-4 fill-current" />
+                  Testar sequência (3 exercícios)
+                </button>
 
-                    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <div className="rounded-xl border border-white/8 bg-[#0B0F0D] p-3">
-                        <p className="text-[11px] text-[#8F9E95]">Tempo estimado</p>
-                        <p className="mt-1 font-mono text-base font-semibold text-[#F4F7F5] tabular-nums">
-                          {recommendedWorkout.duration_minutes} min
+                {/* 3 Cards Inferiores dentro do Hero */}
+                <div className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+                  {/* Card 1: Agachamento com imagem amber */}
+                  <button
+                    type="button"
+                    onClick={() => handleStartPrototype(0)}
+                    className="group flex overflow-hidden rounded-2xl border border-[#F2E5CF] bg-[#FFFCF7] text-left transition-all hover:border-[#F59E2D] hover:shadow-sm"
+                  >
+                    <div className="flex min-w-0 flex-1 flex-col justify-between p-3.5">
+                      <div>
+                        <p className="font-mono text-[11px] font-bold text-[#0C947E]">
+                          01 · {prototypeExercises[0].reps_or_duration}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-sm font-bold leading-snug text-[#0F2A2A]">
+                          {prototypeExercises[0].name}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-white/8 bg-[#0B0F0D] p-3">
-                        <p className="text-[11px] text-[#8F9E95]">Exercícios</p>
-                        <p className="mt-1 font-mono text-base font-semibold text-[#F4F7F5] tabular-nums">
-                          {totalExercisesInRecommended} movs
-                        </p>
+                      <p className="mt-2 truncate text-[11px] text-[#5C7B79]">
+                        {prototypeExercises[0].muscle_group}
+                      </p>
+                    </div>
+                    <div className="w-24 shrink-0 overflow-hidden bg-gradient-to-br from-[#FFB03B] to-[#F27D16]">
+                      <img
+                        src={squatAmberImg}
+                        alt={prototypeExercises[0].name}
+                        className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  </button>
+
+                  {/* Card 2: Flexão de braço com barra de progresso */}
+                  <button
+                    type="button"
+                    onClick={() => handleStartPrototype(1)}
+                    className="group flex flex-col justify-between rounded-2xl border border-[#E1EEE9] bg-white p-3.5 text-left transition-all hover:border-[#12BFA3] hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-mono text-[11px] font-bold text-[#0C947E]">
+                        02 · {prototypeExercises[1].reps_or_duration}
+                      </p>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FFF4E2] text-[#D97706]">
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                    <div className="mt-1">
+                      <p className="line-clamp-1 text-sm font-bold text-[#0F2A2A]">
+                        {prototypeExercises[1].name}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-[#5C7B79]">
+                        {prototypeExercises[1].muscle_group}
+                      </p>
+                    </div>
+                    <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#EEF5F2]">
+                      <div className="h-full w-2/3 rounded-full bg-[#F59E2D]" />
+                    </div>
+                  </button>
+
+                  {/* Card 3: Abdominal em Laranja Vibrante */}
+                  <button
+                    type="button"
+                    onClick={() => handleStartPrototype(2)}
+                    className="group flex flex-col justify-between rounded-2xl bg-gradient-to-br from-[#FFB03B] to-[#F58516] p-3.5 text-left text-white shadow-sm transition-all hover:brightness-105"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] font-bold uppercase tracking-wide text-white/95">
+                        03 · {prototypeExercises[2].reps_or_duration}
+                      </span>
+                      <span className="font-mono text-[11px] font-bold text-white/90">100%</span>
+                    </div>
+                    <div className="mt-1">
+                      <p className="line-clamp-1 text-sm font-bold text-white">
+                        {prototypeExercises[2].name}
+                      </p>
+                    </div>
+                    <div className="mt-2.5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 font-mono text-[10px] font-semibold text-white/90">Core</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/30">
+                          <div className="h-full w-4/5 rounded-full bg-white" />
+                        </div>
                       </div>
-                      <div className="rounded-xl border border-white/8 bg-[#0B0F0D] p-3">
-                        <p className="text-[11px] text-[#8F9E95]">Dificuldade</p>
-                        <p className="mt-1 text-base font-semibold text-[#22C55E]">
-                          {WORKOUT_LEVEL_LABELS[recommendedWorkout.level]}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-white/8 bg-[#0B0F0D] p-3">
-                        <p className="text-[11px] text-[#8F9E95]">Gasto estimado</p>
-                        <p className="mt-1 font-mono text-base font-semibold text-amber-300 tabular-nums">
-                          ~{recommendedWorkout.estimated_calories} kcal
-                        </p>
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 font-mono text-[10px] font-semibold text-white/90">Ritmo</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/30">
+                          <div className="h-full w-3/5 rounded-full bg-white" />
+                        </div>
                       </div>
                     </div>
-                  </>
-                ) : null}
+                  </button>
+                </div>
               </div>
 
-              {recommendedWorkout && (
-                <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleStartWorkout(
-                        recommendedWorkout,
-                        trainingPlan
-                          ? { planId: trainingPlan.id, dayNumber: trainingPlan.current_day }
-                          : null
-                      )
-                    }
-                    className="inline-flex flex-1 items-center justify-center gap-2.5 rounded-xl bg-[#22C55E] px-6 py-3.5 text-sm font-bold tracking-wide text-[#06120A] transition-colors hover:bg-[#16A34A] sm:flex-none"
-                  >
-                    <Play className="h-4 w-4 fill-current" />
-                    INICIAR TREINO
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTutorialWorkout(recommendedWorkout)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-[#0B0F0D] px-4 py-3.5 text-xs font-semibold text-[#F4F7F5] transition-colors hover:border-[#22C55E]/50"
-                  >
-                    <Film className="h-4 w-4 text-[#22C55E]" />
-                    Ver modelos 3D
-                  </button>
+              {/* Card Inferior Esquerdo: Treino Recomendado para Hoje */}
+              <div className="flex flex-col justify-between rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#0C947E]">
+                      Treino recomendado para hoje
+                    </span>
+                    <div className="flex items-center gap-2 font-mono text-xs text-[#5C7B79]">
+                      {recommendedWorkout && (
+                        <span>
+                          {recommendedWorkout.duration_minutes} min · ~{recommendedWorkout.estimated_calories} kcal
+                        </span>
+                      )}
+                      {trainingPlan && (
+                        <span className="rounded-lg bg-[#F4FAF7] px-2 py-0.5 text-[#0F2A2A]">
+                          Dia {trainingPlan.current_day}/{trainingPlan.duration_days}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {recommendedWorkout ? (
+                    <>
+                      <h3 className="mt-2 font-display text-2xl font-bold text-[#0F2A2A]">
+                        {recommendedWorkout.title}
+                      </h3>
+                      <p className="mt-1.5 max-w-2xl text-sm text-[#4B6B68]">
+                        {recommendedWorkout.description}
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="rounded-2xl border border-[#E1EEE9] bg-[#F4FAF7] p-3">
+                          <p className="text-[11px] font-medium text-[#5C7B79]">Tempo estimado</p>
+                          <p className="mt-1 font-mono text-base font-bold text-[#0F2A2A] tabular-nums">
+                            {recommendedWorkout.duration_minutes} min
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-[#E1EEE9] bg-[#F4FAF7] p-3">
+                          <p className="text-[11px] font-medium text-[#5C7B79]">Exercícios</p>
+                          <p className="mt-1 font-mono text-base font-bold text-[#0F2A2A] tabular-nums">
+                            {totalExercisesInRecommended} movs
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-[#BCE6DC] bg-[#EAF9F4] p-3">
+                          <p className="text-[11px] font-medium text-[#0B7C6A]">Dificuldade</p>
+                          <p className="mt-1 text-base font-bold text-[#0C947E]">
+                            {WORKOUT_LEVEL_LABELS[recommendedWorkout.level]}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-[#F7E3C4] bg-[#FFF9F0] p-3">
+                          <p className="text-[11px] font-medium text-[#9A5B13]">Gasto estimado</p>
+                          <p className="mt-1 font-mono text-base font-bold text-[#D97706] tabular-nums">
+                            ~{recommendedWorkout.estimated_calories} kcal
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
-              )}
+
+                {recommendedWorkout && (
+                  <div className="mt-5 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleStartWorkout(
+                          recommendedWorkout,
+                          trainingPlan
+                            ? { planId: trainingPlan.id, dayNumber: trainingPlan.current_day }
+                            : null
+                        )
+                      }
+                      className="inline-flex flex-1 items-center justify-center gap-2.5 rounded-2xl bg-[#15C8AA] px-6 py-3.5 text-sm font-bold tracking-wide text-[#062924] shadow-sm transition-colors hover:bg-[#10B599] sm:flex-none"
+                    >
+                      <Play className="h-4 w-4 fill-current" />
+                      INICIAR TREINO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTutorialWorkout(recommendedWorkout)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-3.5 text-xs font-semibold text-[#0F2A2A] transition-colors hover:border-[#12BFA3] hover:bg-[#E7F4EF]"
+                    >
+                      <Film className="h-4 w-4 text-[#0C947E]" />
+                      Ver modelos 3D
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Progresso Semanal & Calendário de Atividades */}
-            <div className="flex flex-col justify-between rounded-2xl border border-white/8 bg-[#111613] p-5 lg:col-span-5">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F4F7F5]">
-                    <Calendar className="h-4 w-4 text-[#22C55E]" />
-                    Calendário &amp; Frequência Semanal
-                  </h3>
-                  <span className="font-mono text-xs capitalize text-[#9AA8A0]">
-                    {monthCalendar.monthLabel}
-                  </span>
-                </div>
-
-                {/* Dias da semana e progresso dos últimos 7 dias */}
-                <div className="mt-4 grid grid-cols-7 gap-1.5">
-                  {(stats?.weekly_series || []).map((day) => {
-                    const done = day.sessions > 0;
-                    return (
-                      <div
-                        key={day.date}
-                        className={`flex flex-col items-center rounded-xl border py-2 text-center ${
-                          done
-                            ? 'border-[#22C55E]/40 bg-[#22C55E]/15 text-[#F4F7F5]'
-                            : 'border-white/6 bg-[#0B0F0D] text-[#7D8C84]'
-                        }`}
-                      >
-                        <span className="text-[10px] font-medium uppercase">{day.label}</span>
-                        <span className="mt-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-mono">
-                          {done ? <Check className="h-3.5 w-3.5 text-[#22C55E]" /> : '·'}
-                        </span>
-                      </div>
-                    );
-                  })}
+            {/* Coluna Direita (4 cols): Calendário + Gráfico Duplo "Treino" + Resumo */}
+            <div className="space-y-5 lg:col-span-4">
+              {/* 1. Calendário Mensal Compacto */}
+              <div className="rounded-3xl border border-[#E1EEE9] bg-white p-5 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-[#0F2A2A]">
+                      <Calendar className="h-4 w-4 text-[#0C947E]" />
+                      <span className="capitalize">{monthCalendar.monthLabel}</span>
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSubTab('custom')}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#E1EEE9] bg-[#F4FAF7] text-[#5C7B79] hover:text-[#0F2A2A]"
+                    title="Configurar lembretes e preferências"
+                    aria-label="Configurar lembretes"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                  </button>
                 </div>
 
                 {/* Mini Calendário Mensal */}
-                <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px]">
+                <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px]">
                   {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
-                    <div key={i} className="py-1 font-medium text-[#7D8C84]">
+                    <div key={i} className="py-1 font-semibold text-[#648482]">
                       {d}
                     </div>
                   ))}
@@ -672,28 +891,132 @@ export function WorkoutsPage() {
                     ) : (
                       <div
                         key={c.iso}
-                        className={`rounded-md py-1 font-mono tabular-nums ${
+                        className={`relative rounded-lg py-1.5 font-mono text-xs tabular-nums ${
                           c.active
-                            ? 'bg-[#22C55E] font-bold text-[#06120A]'
+                            ? 'bg-[#15C8AA] font-bold text-[#062924]'
                             : c.isToday
-                              ? 'border border-[#22C55E]/60 text-[#F4F7F5]'
-                              : 'text-[#8F9E95]'
+                              ? 'font-bold text-[#0F2A2A]'
+                              : 'text-[#4B6B68]'
                         }`}
                       >
                         {c.day}
+                        {c.isToday && !c.active && (
+                          <span className="absolute bottom-0.5 left-1/2 h-[2.5px] w-4 -translate-x-1/2 rounded-full bg-[#F59E2D]" />
+                        )}
                       </div>
                     )
                   )}
                 </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-[#E1EEE9] pt-2.5 text-xs text-[#5C7B79]">
+                  <span>
+                    Semana: <strong className="font-mono text-[#0F2A2A]">{stats?.weekly_frequency || 0} dias</strong>
+                  </span>
+                  <span>
+                    Total: <strong className="font-mono text-[#0C947E]">{stats?.total_workouts || 0} treinos</strong>
+                  </span>
+                </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-white/8 pt-3 text-xs text-[#9AA8A0]">
-                <span>
-                  Semana: <strong className="font-mono text-[#F4F7F5]">{stats?.weekly_frequency || 0} dias ativos</strong>
-                </span>
-                <span>
-                  Total: <strong className="font-mono text-[#22C55E]">{stats?.total_workouts || 0} treinos</strong>
-                </span>
+              {/* 2. Card Gráfico Duplo "Treino" (Barras Esmeralda + Laranja como na referência) */}
+              <div className="rounded-3xl border border-[#E1EEE9] bg-white p-5 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-base font-bold text-[#0F2A2A]">Treino</h3>
+                  <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-[#0F2A2A] tabular-nums">
+                    <span className="h-2 w-2 rounded-full bg-[#F59E2D]" />
+                    {Math.min(100, Math.round(((stats?.weekly_frequency || 0) / 5) * 100))}%
+                  </span>
+                </div>
+
+                {(() => {
+                  const series = stats?.weekly_series || [];
+                  const maxVal = Math.max(...series.map((d) => d.minutes), 30);
+                  const peakDay = series.reduce(
+                    (best, cur) => (cur.minutes >= best.minutes ? cur : best),
+                    series[0] || { label: 'HOJE', minutes: 0 }
+                  );
+                  return (
+                    <div className="mt-4">
+                      <div className="flex h-32 items-end justify-between gap-2 pt-5">
+                        {(series.length > 0
+                          ? series
+                          : ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((l, i) => ({
+                              date: `d-${i}`,
+                              label: l,
+                              minutes: 0,
+                              calories: 0,
+                              sessions: 0,
+                            }))
+                        ).map((day, idx) => {
+                          const greenPct = day.minutes > 0 ? Math.max(22, Math.round((day.minutes / maxVal) * 100)) : 28 + ((idx * 17) % 36);
+                          const amberPct = day.calories > 0 ? Math.max(18, Math.round((day.minutes / maxVal) * 82)) : 18 + ((idx * 13) % 45);
+                          const isPeak = day.label === peakDay.label && peakDay.minutes > 0;
+                          const muted = day.minutes === 0;
+                          return (
+                            <div key={day.date} className="relative flex flex-1 flex-col items-center gap-1.5">
+                              {isPeak && (
+                                <span className="absolute -top-5 rounded-md bg-[#FFF4E2] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#D97706]">
+                                  {day.minutes}m
+                                </span>
+                              )}
+                              <div className="flex h-20 items-end gap-[3px]">
+                                <div
+                                  style={{ height: `${greenPct}%` }}
+                                  className={`w-2 rounded-full transition-all ${
+                                    muted ? 'bg-[#15C8AA]/35' : 'bg-[#15C8AA]'
+                                  }`}
+                                />
+                                <div
+                                  style={{ height: `${amberPct}%` }}
+                                  className={`w-2 rounded-full transition-all ${
+                                    muted ? 'bg-[#FFA22B]/40' : 'bg-[#FFA22B]'
+                                  }`}
+                                />
+                              </div>
+                              <span className="font-mono text-[10px] font-semibold uppercase text-[#648482]">
+                                {day.label.slice(0, 3)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 3. Card Resumo Rápido Inferior */}
+              <div className="rounded-3xl border border-[#E1EEE9] bg-white p-5 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-[#5C7B79]">Resumo semanal</span>
+                  <button
+                    type="button"
+                    onClick={() => setSubTab('evolution')}
+                    className="font-semibold text-[#0C947E] hover:underline"
+                  >
+                    Ver gráficos
+                  </button>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-2xl bg-[#F4FAF7] p-2.5">
+                    <p className="font-mono text-base font-bold text-[#0F2A2A] tabular-nums">
+                      {profile?.current_weight_kg ? `${profile.current_weight_kg.toFixed(1)}kg` : '—'}
+                    </p>
+                    <p className="text-[10px] text-[#5C7B79]">Peso atual</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#F4FAF7] p-2.5">
+                    <p className="font-mono text-base font-bold text-[#0C947E] tabular-nums">
+                      {stats?.total_minutes || 0}m
+                    </p>
+                    <p className="text-[10px] text-[#5C7B79]">Minutos</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#FFF9F0] p-2.5">
+                    <p className="font-mono text-base font-bold text-[#D97706] tabular-nums">
+                      {stats?.total_calories || 0}
+                    </p>
+                    <p className="text-[10px] text-[#9A5B13]">kcal</p>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -701,14 +1024,14 @@ export function WorkoutsPage() {
           {/* 10 Categorias de Exercícios */}
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-lg font-semibold text-[#F4F7F5]">Categorias de treino</h3>
+              <h3 className="font-display text-lg font-bold text-[#0F2A2A]">Categorias de treino</h3>
               <button
                 type="button"
                 onClick={() => setSelectedCategory('Todas')}
-                className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                   selectedCategory === 'Todas'
-                    ? 'bg-[#22C55E] text-[#06120A]'
-                    : 'border border-white/10 text-[#C2CCC6] hover:bg-white/5'
+                    ? 'bg-[#15C8AA] text-[#062924] shadow-sm'
+                    : 'border border-[#D3E5DF] bg-white text-[#4B6B68] hover:bg-[#F4FAF7]'
                 }`}
               >
                 Ver todas ({workouts.length})
@@ -726,17 +1049,17 @@ export function WorkoutsPage() {
                     onClick={() => setSelectedCategory(active ? 'Todas' : cat.name)}
                     className={`flex flex-col justify-between rounded-2xl border p-4 text-left transition-colors ${
                       active
-                        ? 'border-[#22C55E] bg-[#22C55E]/15'
-                        : 'border-white/8 bg-[#111613] hover:border-white/20'
+                        ? 'border-[#12BFA3] bg-[#E3F7F2] shadow-sm'
+                        : 'border-[#E1EEE9] bg-white hover:border-[#B6DCD1]'
                     }`}
                   >
                     <div>
-                      <p className={`text-sm font-semibold ${active ? 'text-[#22C55E]' : 'text-[#F4F7F5]'}`}>
+                      <p className={`text-sm font-bold ${active ? 'text-[#0B7C6A]' : 'text-[#0F2A2A]'}`}>
                         {cat.name}
                       </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-[#8F9E95]">{cat.tagline}</p>
+                      <p className="mt-1 line-clamp-2 text-[11px] text-[#5C7B79]">{cat.tagline}</p>
                     </div>
-                    <p className="mt-3 font-mono text-[11px] text-[#22C55E] tabular-nums">
+                    <p className="mt-3 font-mono text-[11px] font-semibold text-[#0C947E] tabular-nums">
                       {count} {count === 1 ? 'treino' : 'treinos'}
                     </p>
                   </button>
@@ -748,7 +1071,7 @@ export function WorkoutsPage() {
           {/* Filtros + Lista de Treinos */}
           <section className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-display text-lg font-semibold text-[#F4F7F5]">
+              <h3 className="font-display text-lg font-bold text-[#0F2A2A]">
                 {selectedCategory === 'Todas' ? 'Todos os programas disponíveis' : `Categoria: ${selectedCategory}`}
               </h3>
 
@@ -756,26 +1079,26 @@ export function WorkoutsPage() {
                 <button
                   type="button"
                   onClick={() => setOnlyFavorites((v) => !v)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     onlyFavorites
-                      ? 'border-amber-400/50 bg-amber-400/15 text-amber-300'
-                      : 'border-white/10 bg-[#111613] text-[#9AA8A0] hover:text-white'
+                      ? 'border-[#F7D79C] bg-[#FFF4E2] text-[#D97706]'
+                      : 'border-[#DCECE6] bg-white text-[#4B6B68] hover:text-[#0F2A2A]'
                   }`}
                 >
-                  <Star className={`h-3.5 w-3.5 ${onlyFavorites ? 'fill-amber-300' : ''}`} />
+                  <Star className={`h-3.5 w-3.5 ${onlyFavorites ? 'fill-[#F59E2D] text-[#F59E2D]' : ''}`} />
                   Favoritos
                 </button>
 
-                <div className="flex items-center gap-1 rounded-xl border border-white/8 bg-[#111613] p-1">
+                <div className="flex items-center gap-1 rounded-2xl border border-[#DCECE6] bg-[#EDF7F3] p-1">
                   {(['all', 'iniciante', 'intermediario', 'avancado'] as const).map((lvl) => (
                     <button
                       key={lvl}
                       type="button"
                       onClick={() => setLevelFilter(lvl)}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${
+                      className={`rounded-xl px-2.5 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
                         levelFilter === lvl
-                          ? 'bg-[#22C55E] text-[#06120A]'
-                          : 'text-[#9AA8A0] hover:text-white'
+                          ? 'bg-[#15C8AA] text-[#062924] shadow-sm'
+                          : 'text-[#4B6B68] hover:text-[#0F2A2A]'
                       }`}
                     >
                       {lvl === 'all' ? 'Todos' : WORKOUT_LEVEL_LABELS[lvl]}
@@ -786,7 +1109,7 @@ export function WorkoutsPage() {
             </div>
 
             {filteredWorkouts.length === 0 ? (
-              <div className="rounded-2xl border border-white/8 bg-[#111613] p-8 text-center text-sm text-[#8F9E95]">
+              <div className="rounded-3xl border border-[#E1EEE9] bg-white p-8 text-center text-sm text-[#5C7B79]">
                 Nenhum programa encontrado para este filtro. Limpe o filtro para ver todos os treinos.
               </div>
             ) : (
@@ -797,18 +1120,18 @@ export function WorkoutsPage() {
                   return (
                     <article
                       key={w.id}
-                      className="flex flex-col justify-between rounded-2xl border border-white/8 bg-[#111613] p-6 transition-colors hover:border-white/20"
+                      className="flex flex-col justify-between rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)] transition-colors hover:border-[#B6DCD1]"
                     >
                       <div>
-                        <div className="flex items-center justify-between gap-2 text-xs text-[#8F9E95]">
+                        <div className="flex items-center justify-between gap-2 text-xs text-[#5C7B79]">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-[#22C55E]">{w.category}</span>
+                            <span className="font-bold text-[#0C947E]">{w.category}</span>
                             <span aria-hidden="true">·</span>
                             <span>{WORKOUT_LEVEL_LABELS[w.level]}</span>
                             {(w.is_custom || w.is_ai_generated) && (
                               <>
                                 <span aria-hidden="true">·</span>
-                                <span className="text-amber-300">{w.is_ai_generated ? 'IA' : 'Meu'}</span>
+                                <span className="font-semibold text-[#D97706]">{w.is_ai_generated ? 'IA' : 'Meu'}</span>
                               </>
                             )}
                           </div>
@@ -816,7 +1139,7 @@ export function WorkoutsPage() {
                             <button
                               type="button"
                               onClick={() => handleDeleteCustomWorkout(w.id)}
-                              className="rounded p-1 text-[#7D8C84] hover:text-red-400"
+                              className="rounded-lg p-1 text-[#648482] hover:text-red-600"
                               title="Excluir treino personalizado"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -824,21 +1147,21 @@ export function WorkoutsPage() {
                           )}
                         </div>
 
-                        <h4 className="mt-2 font-display text-lg font-semibold text-[#F4F7F5]">{w.title}</h4>
-                        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[#9AA8A0]">
+                        <h4 className="mt-2 font-display text-lg font-bold text-[#0F2A2A]">{w.title}</h4>
+                        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[#4B6B68]">
                           {w.description}
                         </p>
 
-                        <div className="mt-4 flex items-center gap-4 border-t border-white/8 pt-3 text-xs text-[#C2CCC6]">
+                        <div className="mt-4 flex items-center gap-4 border-t border-[#E1EEE9] pt-3 text-xs text-[#2E4A48]">
                           <span className="inline-flex items-center gap-1.5 font-mono tabular-nums">
-                            <Clock className="h-3.5 w-3.5 text-[#8F9E95]" />
+                            <Clock className="h-3.5 w-3.5 text-[#5C7B79]" />
                             {w.duration_minutes} min
                           </span>
                           <span className="inline-flex items-center gap-1.5 font-mono tabular-nums">
-                            <Flame className="h-3.5 w-3.5 text-amber-400" />
+                            <Flame className="h-3.5 w-3.5 text-[#F59E2D]" />
                             ~{w.estimated_calories} kcal
                           </span>
-                          <span className="ml-auto text-[#8F9E95] tabular-nums">
+                          <span className="ml-auto font-medium text-[#5C7B79] tabular-nums">
                             {totalMoves} movs
                           </span>
                         </div>
@@ -848,15 +1171,15 @@ export function WorkoutsPage() {
                         <button
                           type="button"
                           onClick={() => setTutorialWorkout(w)}
-                          className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#0C100E] px-3 py-2.5 text-xs font-medium text-[#C2CCC6] transition-colors hover:border-[#22C55E]/40 hover:text-[#22C55E]"
+                          className="flex items-center justify-center gap-1.5 rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3 py-2.5 text-xs font-semibold text-[#2E4A48] transition-colors hover:border-[#12BFA3] hover:text-[#0C947E]"
                         >
-                          <Film className="h-3.5 w-3.5 text-[#22C55E]" />
+                          <Film className="h-3.5 w-3.5 text-[#0C947E]" />
                           Tutoriais 3D
                         </button>
                         <button
                           type="button"
                           onClick={() => handleStartWorkout(w)}
-                          className="flex items-center justify-center gap-1.5 rounded-xl bg-white/8 px-3 py-2.5 text-xs font-semibold text-[#F4F7F5] transition-colors hover:bg-[#22C55E] hover:text-[#06120A]"
+                          className="flex items-center justify-center gap-1.5 rounded-xl bg-[#12BFA3] px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#0EA88F]"
                         >
                           <Play className="h-3.5 w-3.5 fill-current" />
                           Iniciar
@@ -874,27 +1197,27 @@ export function WorkoutsPage() {
       {/* === TAB 2: PLANOS DE TREINAMENTO (7, 14, 30, 60 DIAS) === */}
       {subTab === 'plans' && (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-white/8 bg-[#111613] p-6">
+          <section className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 className="font-display text-xl font-semibold text-[#F4F7F5]">
+                <h2 className="font-display text-xl font-bold text-[#0F2A2A]">
                   Planos Progressivos de 7 a 60 Dias
                 </h2>
-                <p className="mt-1 text-xs text-[#9AA8A0]">
+                <p className="mt-1 text-xs text-[#4B6B68]">
                   Cada plano organiza dias de treino com aquecimento + principais + alongamento, evolução gradual de volume e dias estratégicos de recuperação.
                 </p>
               </div>
               {preferences && (
-                <div className="rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 px-3.5 py-2 text-xs">
-                  <span className="text-[#9AA8A0]">Adaptação automática: </span>
-                  <strong className="font-mono text-[#22C55E]">{preferences.adaptive_multiplier.toFixed(2)}x</strong>
+                <div className="rounded-xl border border-[#BCE6DC] bg-[#E3F7F2] px-3.5 py-2 text-xs">
+                  <span className="text-[#4B6B68]">Adaptação automática: </span>
+                  <strong className="font-mono text-[#0B7C6A]">{preferences.adaptive_multiplier.toFixed(2)}x</strong>
                 </div>
               )}
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#C2CCC6]">Duração do plano</label>
+                <label className="mb-1.5 block text-xs font-semibold text-[#2E4A48]">Duração do plano</label>
                 <div className="grid grid-cols-4 gap-2">
                   {([7, 14, 30, 60] as const).map((days) => (
                     <button
@@ -903,8 +1226,8 @@ export function WorkoutsPage() {
                       onClick={() => setPlanDaysChoice(days)}
                       className={`rounded-xl border py-2.5 font-mono text-xs font-semibold transition-colors ${
                         planDaysChoice === days
-                          ? 'border-[#22C55E] bg-[#22C55E]/15 text-[#22C55E]'
-                          : 'border-white/10 bg-[#0A0D0B] text-[#9AA8A0] hover:text-white'
+                          ? 'border-[#12BFA3] bg-[#E3F7F2] text-[#0B7C6A]'
+                          : 'border-[#D3E5DF] bg-[#F4FAF7] text-[#4B6B68] hover:text-[#0F2A2A]'
                       }`}
                     >
                       {days}d
@@ -914,7 +1237,7 @@ export function WorkoutsPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#C2CCC6]">Nível de dificuldade</label>
+                <label className="mb-1.5 block text-xs font-semibold text-[#2E4A48]">Nível de dificuldade</label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['iniciante', 'intermediario', 'avancado'] as const).map((lvl) => (
                     <button
@@ -923,8 +1246,8 @@ export function WorkoutsPage() {
                       onClick={() => setPlanLevelChoice(lvl)}
                       className={`rounded-xl border py-2.5 text-xs font-semibold transition-colors ${
                         planLevelChoice === lvl
-                          ? 'border-[#22C55E] bg-[#22C55E]/15 text-[#22C55E]'
-                          : 'border-white/10 bg-[#0A0D0B] text-[#9AA8A0] hover:text-white'
+                          ? 'border-[#12BFA3] bg-[#E3F7F2] text-[#0B7C6A]'
+                          : 'border-[#D3E5DF] bg-[#F4FAF7] text-[#4B6B68] hover:text-[#0F2A2A]'
                       }`}
                     >
                       {WORKOUT_LEVEL_LABELS[lvl]}
@@ -938,7 +1261,7 @@ export function WorkoutsPage() {
                   type="button"
                   onClick={handleCreatePlan}
                   disabled={creatingPlan}
-                  className="w-full rounded-xl bg-[#22C55E] px-5 py-2.5 text-sm font-semibold text-[#06120A] transition-colors hover:bg-[#16A34A] disabled:opacity-60"
+                  className="w-full rounded-xl bg-[#12BFA3] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0EA88F] disabled:opacity-60"
                 >
                   {creatingPlan ? 'Montando plano...' : `Ativar plano de ${planDaysChoice} dias`}
                 </button>
@@ -947,18 +1270,18 @@ export function WorkoutsPage() {
           </section>
 
           {trainingPlan && (
-            <section className="rounded-2xl border border-white/8 bg-[#111613] p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 pb-4">
+            <section className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E1EEE9] pb-4">
                 <div>
-                  <h3 className="font-display text-lg font-semibold text-[#F4F7F5]">{trainingPlan.title}</h3>
-                  <p className="text-xs text-[#8F9E95]">
+                  <h3 className="font-display text-lg font-bold text-[#0F2A2A]">{trainingPlan.title}</h3>
+                  <p className="text-xs text-[#5C7B79]">
                     {trainingPlan.completed_days.length} de {trainingPlan.duration_days} dias concluídos · Dia atual: {trainingPlan.current_day}
                   </p>
                 </div>
                 <div className="w-48">
-                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-2.5 overflow-hidden rounded-full bg-[#E3EFEA]">
                     <div
-                      className="h-full bg-[#22C55E]"
+                      className="h-full rounded-full bg-[#12BFA3]"
                       style={{
                         width: `${Math.round((trainingPlan.completed_days.length / trainingPlan.duration_days) * 100)}%`,
                       }}
@@ -976,35 +1299,35 @@ export function WorkoutsPage() {
                   return (
                     <div
                       key={day.day_number}
-                      className={`flex flex-col justify-between rounded-xl border p-4 transition-colors ${
+                      className={`flex flex-col justify-between rounded-2xl border p-4 transition-colors ${
                         isCurrent
-                          ? 'border-[#22C55E] bg-[#22C55E]/10'
+                          ? 'border-[#12BFA3] bg-[#E3F7F2]'
                           : isDone
-                            ? 'border-[#22C55E]/30 bg-[#0E1611]'
-                            : 'border-white/8 bg-[#0B0F0D]'
+                            ? 'border-[#BCE6DC] bg-[#F2FBF8]'
+                            : 'border-[#E1EEE9] bg-[#F8FCFA]'
                       }`}
                     >
                       <div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-mono font-bold text-[#22C55E]">DIA {day.day_number}</span>
+                          <span className="font-mono font-bold text-[#0C947E]">DIA {day.day_number}</span>
                           {isDone ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#22C55E]">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0C947E]">
                               <CheckCircle2 className="h-3.5 w-3.5" /> Concluído
                             </span>
                           ) : day.is_rest_day ? (
-                            <span className="text-[11px] text-amber-300">Descanso ativo</span>
+                            <span className="text-[11px] font-semibold text-[#D97706]">Descanso ativo</span>
                           ) : (
-                            <span className="font-mono text-[11px] text-[#8F9E95]">
+                            <span className="font-mono text-[11px] text-[#5C7B79]">
                               {Math.round(day.intensity_multiplier * 100)}% carga
                             </span>
                           )}
                         </div>
-                        <p className="mt-1.5 text-sm font-semibold text-[#F4F7F5]">{day.title}</p>
-                        <p className="mt-1 text-[11px] text-[#8F9E95]">{day.notes}</p>
+                        <p className="mt-1.5 text-sm font-bold text-[#0F2A2A]">{day.title}</p>
+                        <p className="mt-1 text-[11px] text-[#5C7B79]">{day.notes}</p>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between border-t border-white/6 pt-2.5 text-xs">
-                        <span className="font-mono text-[#9AA8A0]">
+                      <div className="mt-3 flex items-center justify-between border-t border-[#DCECE6] pt-2.5 text-xs">
+                        <span className="font-mono text-[#4B6B68]">
                           {day.duration_minutes} min · ~{day.estimated_calories} kcal
                         </span>
                         {targetWorkout && (
@@ -1016,7 +1339,7 @@ export function WorkoutsPage() {
                                 dayNumber: day.day_number,
                               })
                             }
-                            className="rounded-lg bg-[#22C55E] px-2.5 py-1 text-[11px] font-semibold text-[#06120A] hover:bg-[#16A34A]"
+                            className="rounded-xl bg-[#12BFA3] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#0EA88F]"
                           >
                             Treinar
                           </button>
@@ -1036,15 +1359,15 @@ export function WorkoutsPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Preferências Rápidas de Treino */}
           {preferences && (
-            <section className="rounded-2xl border border-white/8 bg-[#111613] p-6 lg:col-span-5">
-              <h2 className="font-display text-lg font-semibold text-[#F4F7F5]">Preferências de Treino</h2>
-              <p className="mt-1 text-xs text-[#8F9E95]">
+            <section className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)] lg:col-span-5">
+              <h2 className="font-display text-lg font-bold text-[#0F2A2A]">Preferências de Treino</h2>
+              <p className="mt-1 text-xs text-[#5C7B79]">
                 Ajuste nível, contagem inicial, descanso automático e áudio guia conforme sua rotina.
               </p>
 
               <div className="mt-5 space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#C2CCC6]">Nível preferido</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#2E4A48]">Nível preferido</label>
                   <div className="grid grid-cols-3 gap-2">
                     {(['iniciante', 'intermediario', 'avancado'] as const).map((lvl) => (
                       <button
@@ -1053,8 +1376,8 @@ export function WorkoutsPage() {
                         onClick={() => handleUpdatePreferences({ preferred_level: lvl })}
                         className={`rounded-xl border py-2 text-xs font-semibold ${
                           preferences.preferred_level === lvl
-                            ? 'border-[#22C55E] bg-[#22C55E]/15 text-[#22C55E]'
-                            : 'border-white/10 bg-[#0A0D0B] text-[#9AA8A0]'
+                            ? 'border-[#12BFA3] bg-[#E3F7F2] text-[#0B7C6A]'
+                            : 'border-[#D3E5DF] bg-[#F4FAF7] text-[#4B6B68]'
                         }`}
                       >
                         {WORKOUT_LEVEL_LABELS[lvl]}
@@ -1065,13 +1388,13 @@ export function WorkoutsPage() {
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="mb-1 block text-xs text-[#C2CCC6]">Duração alvo</label>
+                    <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Duração alvo</label>
                     <select
                       value={preferences.preferred_duration_min}
                       onChange={(e) =>
                         handleUpdatePreferences({ preferred_duration_min: Number(e.target.value) })
                       }
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-2.5 py-2 font-mono text-xs text-[#F4F7F5]"
+                      className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-2.5 py-2 font-mono text-xs text-[#0F2A2A]"
                     >
                       {[15, 20, 25, 35, 45].map((m) => (
                         <option key={m} value={m}>
@@ -1082,13 +1405,13 @@ export function WorkoutsPage() {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs text-[#C2CCC6]">Preparação</label>
+                    <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Preparação</label>
                     <select
                       value={preferences.countdown_seconds}
                       onChange={(e) =>
                         handleUpdatePreferences({ countdown_seconds: Number(e.target.value) })
                       }
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-2.5 py-2 font-mono text-xs text-[#F4F7F5]"
+                      className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-2.5 py-2 font-mono text-xs text-[#0F2A2A]"
                     >
                       {[3, 5, 8, 10].map((s) => (
                         <option key={s} value={s}>
@@ -1099,11 +1422,11 @@ export function WorkoutsPage() {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs text-[#C2CCC6]">Descanso padrão</label>
+                    <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Descanso padrão</label>
                     <select
                       value={preferences.rest_seconds}
                       onChange={(e) => handleUpdatePreferences({ rest_seconds: Number(e.target.value) })}
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-2.5 py-2 font-mono text-xs text-[#F4F7F5]"
+                      className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-2.5 py-2 font-mono text-xs text-[#0F2A2A]"
                     >
                       {[15, 20, 25, 30, 45].map((s) => (
                         <option key={s} value={s}>
@@ -1115,12 +1438,12 @@ export function WorkoutsPage() {
                 </div>
 
                 {/* Favoritos */}
-                <div className="border-t border-white/8 pt-4">
-                  <p className="text-xs font-semibold text-[#F4F7F5]">
+                <div className="border-t border-[#E1EEE9] pt-4">
+                  <p className="text-xs font-bold text-[#0F2A2A]">
                     Exercícios Favoritos ({preferences.favorite_exercise_ids.length})
                   </p>
                   {preferences.favorite_exercise_ids.length === 0 ? (
-                    <p className="mt-1 text-xs text-[#8F9E95]">
+                    <p className="mt-1 text-xs text-[#5C7B79]">
                       Toque na estrela de qualquer exercício nos tutoriais ou durante o treino para fixá-lo aqui.
                     </p>
                   ) : (
@@ -1132,9 +1455,9 @@ export function WorkoutsPage() {
                             key={id}
                             type="button"
                             onClick={() => handleToggleFavorite(id)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-400/35 bg-amber-400/10 px-2.5 py-1 text-[11px] text-amber-200"
+                            className="inline-flex items-center gap-1 rounded-xl border border-[#F7D79C] bg-[#FFF4E2] px-2.5 py-1 text-[11px] font-semibold text-[#D97706]"
                           >
-                            <Star className="h-3 w-3 fill-amber-300" />
+                            <Star className="h-3 w-3 fill-[#F59E2D] text-[#F59E2D]" />
                             {ex ? ex.name : id}
                           </button>
                         );
@@ -1149,32 +1472,32 @@ export function WorkoutsPage() {
           {/* Construtor Manual de Treino */}
           <form
             onSubmit={handleCreateCustomWorkout}
-            className="space-y-4 rounded-2xl border border-white/8 bg-[#111613] p-6 lg:col-span-7"
+            className="space-y-4 rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)] lg:col-span-7"
           >
-            <h2 className="font-display text-lg font-semibold text-[#F4F7F5]">Montar meu próprio treino</h2>
-            <p className="text-xs text-[#8F9E95]">
+            <h2 className="font-display text-lg font-bold text-[#0F2A2A]">Montar meu próprio treino</h2>
+            <p className="text-xs text-[#5C7B79]">
               Escolha os exercícios com modelo 3D, defina a categoria e salve na sua conta com aquecimento e alongamento inclusos.
             </p>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="sm:col-span-1">
-                <label className="mb-1 block text-xs text-[#C2CCC6]">Nome do treino</label>
+                <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Nome do treino</label>
                 <input
                   type="text"
                   required
                   value={customTitle}
                   onChange={(e) => setCustomTitle(e.target.value)}
                   placeholder="Ex: Meu Treino de Core"
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-3 py-2 text-xs text-[#F4F7F5] focus:border-[#22C55E] focus:outline-none"
+                  className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3 py-2 text-xs text-[#0F2A2A] placeholder-[#7C9A98] focus:border-[#12BFA3] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-xs text-[#C2CCC6]">Categoria</label>
+                <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Categoria</label>
                 <select
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value as WorkoutCategoryName)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-3 py-2 text-xs text-[#F4F7F5]"
+                  className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3 py-2 text-xs text-[#0F2A2A]"
                 >
                   {WORKOUT_CATEGORIES.map((c) => (
                     <option key={c.name} value={c.name}>
@@ -1185,11 +1508,11 @@ export function WorkoutsPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs text-[#C2CCC6]">Nível</label>
+                <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Nível</label>
                 <select
                   value={customLevel}
                   onChange={(e) => setCustomLevel(e.target.value as WorkoutLevel)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-3 py-2 text-xs text-[#F4F7F5]"
+                  className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3 py-2 text-xs text-[#0F2A2A]"
                 >
                   <option value="iniciante">Iniciante</option>
                   <option value="intermediario">Intermediário</option>
@@ -1199,7 +1522,7 @@ export function WorkoutsPage() {
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-medium text-[#C2CCC6]">
+              <p className="mb-2 text-xs font-semibold text-[#2E4A48]">
                 Selecione os exercícios principais ({selectedExerciseIds.length} selecionados):
               </p>
               <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
@@ -1216,15 +1539,15 @@ export function WorkoutsPage() {
                       }
                       className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
                         picked
-                          ? 'border-[#22C55E] bg-[#22C55E]/15 text-[#F4F7F5]'
-                          : 'border-white/8 bg-[#0A0D0B] text-[#9AA8A0] hover:text-white'
+                          ? 'border-[#12BFA3] bg-[#E3F7F2] text-[#0F2A2A]'
+                          : 'border-[#DCECE6] bg-[#F4FAF7] text-[#4B6B68] hover:text-[#0F2A2A]'
                       }`}
                     >
                       <div className="min-w-0 pr-2">
-                        <div className="truncate font-medium">{ex.name}</div>
-                        <div className="truncate text-[10px] text-[#7D8C84]">{ex.muscle_group}</div>
+                        <div className="truncate font-semibold">{ex.name}</div>
+                        <div className="truncate text-[10px] text-[#5C7B79]">{ex.muscle_group}</div>
                       </div>
-                      {picked && <Check className="h-3.5 w-3.5 shrink-0 text-[#22C55E]" />}
+                      {picked && <Check className="h-3.5 w-3.5 shrink-0 text-[#0C947E]" />}
                     </button>
                   );
                 })}
@@ -1235,7 +1558,7 @@ export function WorkoutsPage() {
               <button
                 type="submit"
                 disabled={savingCustom || !customTitle.trim() || selectedExerciseIds.length === 0}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#22C55E] px-5 py-2.5 text-sm font-semibold text-[#06120A] hover:bg-[#16A34A] disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#12BFA3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0EA88F] disabled:opacity-60"
               >
                 <Plus className="h-4 w-4" />
                 {savingCustom ? 'Salvando treino...' : 'Salvar treino personalizado'}
@@ -1246,14 +1569,14 @@ export function WorkoutsPage() {
           {/* Gerador com Gemini IA */}
           <form
             onSubmit={handleGenerateWorkoutAI}
-            className="flex flex-col justify-between rounded-2xl border border-white/8 bg-[#111613] p-6 lg:col-span-12"
+            className="flex flex-col justify-between rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)] lg:col-span-12"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="font-display text-lg font-semibold text-[#F4F7F5]">
+                <h3 className="font-display text-lg font-bold text-[#0F2A2A]">
                   Gerar treino completo com Inteligência Artificial (Gemini)
                 </h3>
-                <p className="mt-1 text-xs text-[#8F9E95]">
+                <p className="mt-1 text-xs text-[#5C7B79]">
                   Cria automaticamente aquecimento, bloco principal com demonstrações 3D e alongamento final.
                 </p>
               </div>
@@ -1261,21 +1584,21 @@ export function WorkoutsPage() {
 
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-[#C2CCC6]">Objetivo ou grupo muscular</label>
+                <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Objetivo ou grupo muscular</label>
                 <input
                   type="text"
                   required
                   value={aiFocus}
                   onChange={(e) => setAiFocus(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-3.5 py-2.5 text-sm text-[#F4F7F5] focus:border-[#22C55E] focus:outline-none"
+                  className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 text-sm text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-[#C2CCC6]">Duração</label>
+                <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Duração</label>
                 <select
                   value={aiDuration}
                   onChange={(e) => setAiDuration(Number(e.target.value))}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-3.5 py-2.5 font-mono text-sm text-[#F4F7F5]"
+                  className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 font-mono text-sm text-[#0F2A2A]"
                 >
                   <option value={15}>15 min</option>
                   <option value={20}>20 min</option>
@@ -1288,7 +1611,7 @@ export function WorkoutsPage() {
                 <button
                   type="submit"
                   disabled={generatingAI}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#22C55E] px-5 py-2.5 text-sm font-semibold text-[#06120A] hover:bg-[#16A34A] disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#12BFA3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0EA88F] disabled:opacity-60"
                 >
                   <Sparkles className="h-4 w-4" />
                   {generatingAI ? 'Gerando...' : 'Gerar com Gemini'}
@@ -1297,7 +1620,7 @@ export function WorkoutsPage() {
             </div>
 
             {genError && (
-              <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-200">
+              <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
                 {genError}
               </p>
             )}
@@ -1317,24 +1640,24 @@ export function WorkoutsPage() {
               { label: 'Frequência semanal', value: `${stats?.weekly_frequency || 0} dias` },
               { label: 'Sequência ativa', value: `${stats?.streak_days || 0} dias` },
             ].map((kpi) => (
-              <div key={kpi.label} className="rounded-2xl border border-white/8 bg-[#111613] p-4">
-                <p className="text-xs text-[#8F9E95]">{kpi.label}</p>
-                <p className="mt-1 font-mono text-2xl font-bold text-[#F4F7F5] tabular-nums">{kpi.value}</p>
+              <div key={kpi.label} className="rounded-3xl border border-[#E1EEE9] bg-white p-4 shadow-[0_8px_22px_-14px_rgba(15,42,42,0.08)]">
+                <p className="text-xs font-medium text-[#5C7B79]">{kpi.label}</p>
+                <p className="mt-1 font-mono text-2xl font-bold text-[#0F2A2A] tabular-nums">{kpi.value}</p>
               </div>
             ))}
           </section>
 
           {/* Gráficos Semanais & Mensais */}
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-white/8 bg-[#111613] p-6">
-              <h3 className="mb-3 font-display text-base font-semibold text-[#F4F7F5]">
+            <div className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+              <h3 className="mb-3 font-display text-base font-bold text-[#0F2A2A]">
                 Atividade Semanal (Últimos 7 dias)
               </h3>
               <WeeklyWorkoutBarChart data={stats?.weekly_series || []} />
             </div>
 
-            <div className="rounded-2xl border border-white/8 bg-[#111613] p-6">
-              <h3 className="mb-3 font-display text-base font-semibold text-[#F4F7F5]">
+            <div className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+              <h3 className="mb-3 font-display text-base font-bold text-[#0F2A2A]">
                 Volume Mensal (Últimas 4 semanas)
               </h3>
               <MonthlyWorkoutChart data={stats?.monthly_series || []} />
@@ -1343,8 +1666,8 @@ export function WorkoutsPage() {
 
           {/* Peso + Lembretes */}
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div className="rounded-2xl border border-white/8 bg-[#111613] p-6 lg:col-span-6">
-              <h3 className="mb-3 font-display text-base font-semibold text-[#F4F7F5]">
+            <div className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)] lg:col-span-6">
+              <h3 className="mb-3 font-display text-base font-bold text-[#0F2A2A]">
                 Evolução de Peso Corporal
               </h3>
               <WeightEvolutionChart
@@ -1354,14 +1677,14 @@ export function WorkoutsPage() {
             </div>
 
             {preferences && (
-              <div className="rounded-2xl border border-white/8 bg-[#111613] p-6 lg:col-span-6">
+              <div className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)] lg:col-span-6">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <h3 className="flex items-center gap-2 font-display text-base font-semibold text-[#F4F7F5]">
-                      <Bell className="h-4 w-4 text-[#22C55E]" />
+                    <h3 className="flex items-center gap-2 font-display text-base font-bold text-[#0F2A2A]">
+                      <Bell className="h-4 w-4 text-[#F59E2D]" />
                       Lembretes Personalizáveis
                     </h3>
-                    <p className="mt-0.5 text-xs text-[#8F9E95]">
+                    <p className="mt-0.5 text-xs text-[#5C7B79]">
                       Configure horário de treino, frequência semanal e aviso de descanso.
                     </p>
                   </div>
@@ -1370,8 +1693,8 @@ export function WorkoutsPage() {
                     onClick={() => handleUpdatePreferences({ reminder_enabled: !preferences.reminder_enabled })}
                     className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold ${
                       preferences.reminder_enabled
-                        ? 'bg-[#22C55E] text-[#06120A]'
-                        : 'border border-white/10 text-[#9AA8A0]'
+                        ? 'bg-[#12BFA3] text-white'
+                        : 'border border-[#D3E5DF] bg-[#F4FAF7] text-[#4B6B68]'
                     }`}
                   >
                     {preferences.reminder_enabled ? 'Ativado' : 'Desativado'}
@@ -1380,25 +1703,25 @@ export function WorkoutsPage() {
 
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div>
-                    <label className="mb-1 block text-xs text-[#C2CCC6]">Horário do treino</label>
+                    <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Horário do treino</label>
                     <input
                       type="time"
                       value={preferences.reminder_time}
                       onChange={(e) => handleUpdatePreferences({ reminder_time: e.target.value })}
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-3 py-2 font-mono text-xs text-[#F4F7F5]"
+                      className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3 py-2 font-mono text-xs text-[#0F2A2A]"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-[#C2CCC6]">Horário de descanso</label>
+                    <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Horário de descanso</label>
                     <input
                       type="time"
                       value={preferences.rest_time_reminder}
                       onChange={(e) => handleUpdatePreferences({ rest_time_reminder: e.target.value })}
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-3 py-2 font-mono text-xs text-[#F4F7F5]"
+                      className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3 py-2 font-mono text-xs text-[#0F2A2A]"
                     />
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="mb-1 block text-xs text-[#C2CCC6]">Frequência</label>
+                    <label className="mb-1 block text-xs font-medium text-[#2E4A48]">Frequência</label>
                     <select
                       value={preferences.reminder_frequency}
                       onChange={(e) =>
@@ -1406,7 +1729,7 @@ export function WorkoutsPage() {
                           reminder_frequency: e.target.value as WorkoutPreferences['reminder_frequency'],
                         })
                       }
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-2.5 py-2 text-xs text-[#F4F7F5]"
+                      className="w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-2.5 py-2 text-xs text-[#0F2A2A]"
                     >
                       <option value="diario">Diário</option>
                       <option value="dias_selecionados">Dias selecionados</option>
@@ -1416,7 +1739,7 @@ export function WorkoutsPage() {
                 </div>
 
                 <div className="mt-4">
-                  <p className="mb-2 text-xs text-[#C2CCC6]">Dias da semana</p>
+                  <p className="mb-2 text-xs font-medium text-[#2E4A48]">Dias da semana</p>
                   <div className="grid grid-cols-7 gap-1.5">
                     {WEEKDAY_LABELS.map((d) => {
                       const active = preferences.reminder_days.includes(d.id);
@@ -1430,10 +1753,10 @@ export function WorkoutsPage() {
                               : [...preferences.reminder_days, d.id].sort((a, b) => a - b);
                             handleUpdatePreferences({ reminder_days: nextDays });
                           }}
-                          className={`rounded-lg border py-1.5 text-[11px] font-medium ${
+                          className={`rounded-xl border py-1.5 text-[11px] font-semibold ${
                             active
-                              ? 'border-[#22C55E] bg-[#22C55E]/15 text-[#22C55E]'
-                              : 'border-white/10 bg-[#0A0D0B] text-[#8F9E95]'
+                              ? 'border-[#12BFA3] bg-[#E3F7F2] text-[#0B7C6A]'
+                              : 'border-[#DCECE6] bg-[#F4FAF7] text-[#5C7B79]'
                           }`}
                         >
                           {d.short}
@@ -1443,60 +1766,60 @@ export function WorkoutsPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#E1EEE9] pt-3">
                   <button
                     type="button"
                     onClick={handleRequestNotifications}
-                    className="rounded-xl border border-[#22C55E]/40 px-3.5 py-2 text-xs font-medium text-[#22C55E] hover:bg-[#22C55E]/10"
+                    className="rounded-xl border border-[#BCE6DC] bg-[#E3F7F2] px-3.5 py-2 text-xs font-semibold text-[#0B7C6A] hover:bg-[#D4F3EA]"
                   >
                     Ativar / testar notificações do sistema
                   </button>
                 </div>
 
                 {notifFeedback && (
-                  <p className="mt-2.5 text-xs text-[#22C55E]">{notifFeedback}</p>
+                  <p className="mt-2.5 text-xs font-medium text-[#0C947E]">{notifFeedback}</p>
                 )}
               </div>
             )}
           </section>
 
           {/* Histórico Completo */}
-          <section className="rounded-2xl border border-white/8 bg-[#111613] p-6">
-            <h3 className="font-display text-lg font-semibold text-[#F4F7F5]">Histórico de sessões concluídas</h3>
+          <section className="rounded-3xl border border-[#E1EEE9] bg-white p-6 shadow-[0_10px_28px_-14px_rgba(15,42,42,0.08)]">
+            <h3 className="font-display text-lg font-bold text-[#0F2A2A]">Histórico de sessões concluídas</h3>
             {logs.length === 0 ? (
-              <p className="mt-3 text-sm text-[#8F9E95]">
+              <p className="mt-3 text-sm text-[#5C7B79]">
                 Nenhum treino registrado ainda. Conclua seu primeiro treino hoje mesmo!
               </p>
             ) : (
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-white/8 text-xs text-[#8F9E95]">
-                      <th className="py-2.5 pr-4 font-medium">Data</th>
-                      <th className="py-2.5 pr-4 font-medium">Treino</th>
-                      <th className="py-2.5 pr-4 text-right font-medium">Exercícios</th>
-                      <th className="py-2.5 pr-4 text-right font-medium">Duração</th>
-                      <th className="py-2.5 pr-4 text-right font-medium">Sensação</th>
-                      <th className="py-2.5 text-right font-medium">Calorias</th>
+                    <tr className="border-b border-[#E1EEE9] text-xs text-[#5C7B79]">
+                      <th className="py-2.5 pr-4 font-semibold">Data</th>
+                      <th className="py-2.5 pr-4 font-semibold">Treino</th>
+                      <th className="py-2.5 pr-4 text-right font-semibold">Exercícios</th>
+                      <th className="py-2.5 pr-4 text-right font-semibold">Duração</th>
+                      <th className="py-2.5 pr-4 text-right font-semibold">Sensação</th>
+                      <th className="py-2.5 text-right font-semibold">Calorias</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/6">
+                  <tbody className="divide-y divide-[#EEF5F2]">
                     {logs.slice(0, 20).map((log) => (
-                      <tr key={log.id} className="hover:bg-white/[0.02]">
-                        <td className="py-2.5 pr-4 font-mono text-xs text-[#9AA8A0] tabular-nums">
+                      <tr key={log.id} className="hover:bg-[#F4FAF7]/60">
+                        <td className="py-2.5 pr-4 font-mono text-xs text-[#5C7B79] tabular-nums">
                           {formatDateBR(log.date)}
                         </td>
-                        <td className="py-2.5 pr-4 font-medium text-[#F4F7F5]">{log.workout_title}</td>
-                        <td className="py-2.5 pr-4 text-right font-mono text-xs text-[#9AA8A0] tabular-nums">
+                        <td className="py-2.5 pr-4 font-semibold text-[#0F2A2A]">{log.workout_title}</td>
+                        <td className="py-2.5 pr-4 text-right font-mono text-xs text-[#4B6B68] tabular-nums">
                           {log.exercises_completed}
                         </td>
-                        <td className="py-2.5 pr-4 text-right font-mono text-xs text-[#C2CCC6] tabular-nums">
+                        <td className="py-2.5 pr-4 text-right font-mono text-xs text-[#2E4A48] tabular-nums">
                           {log.duration_minutes} min
                         </td>
-                        <td className="py-2.5 pr-4 text-right text-xs capitalize text-[#9AA8A0]">
+                        <td className="py-2.5 pr-4 text-right text-xs capitalize text-[#5C7B79]">
                           {log.perceived_difficulty || 'ideal'}
                         </td>
-                        <td className="py-2.5 text-right font-mono text-xs font-medium text-[#22C55E] tabular-nums">
+                        <td className="py-2.5 text-right font-mono text-xs font-bold text-[#D97706] tabular-nums">
                           {log.calories_burned} kcal
                         </td>
                       </tr>
@@ -1525,10 +1848,13 @@ export function WorkoutsPage() {
           workout={activeWorkout}
           preferences={preferences}
           planContext={activePlanContext}
+          initialCountdownSeconds={prototypeActive ? 3 : undefined}
+          prototypeMode={prototypeActive}
           onUpdatePreferences={handleUpdatePreferences}
           onClose={() => {
             setActiveWorkout(null);
             setActivePlanContext(null);
+            setPrototypeActive(false);
           }}
           onComplete={(sessionStats) => handleCompleteWorkout(activeWorkout, sessionStats)}
         />

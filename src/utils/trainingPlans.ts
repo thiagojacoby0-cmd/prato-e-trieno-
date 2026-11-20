@@ -1,5 +1,5 @@
-import type { GoalType, TrainingPlan, TrainingPlanDay, WorkoutCategoryName, WorkoutLevel } from '../types';
-import { DEFAULT_WORKOUT_CATALOG } from '../database/seedWorkouts';
+import type { GoalType, TrainingPlan, TrainingPlanDay, WorkoutCategoryName, WorkoutLevel } from '../types/index.ts';
+import { DEFAULT_WORKOUT_CATALOG } from '../database/seedWorkouts.ts';
 
 const GOAL_SPLIT_CYCLES: Record<string, WorkoutCategoryName[]> = {
   emagrecimento: ['Emagrecimento', 'Corpo inteiro', 'Cardio', 'Pernas', 'Abdômen', 'Glúteos'],

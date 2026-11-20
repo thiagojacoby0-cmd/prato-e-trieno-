@@ -1,14 +1,18 @@
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
-import db from './sqlite';
-import { getSupabaseClientForToken } from './supabaseClient';
-import { v4Fallback } from './uuidHelper';
-import {
+import db from './sqlite.ts';
+import { ensureAppDirectories, UPLOADS_DIR } from './paths.ts';
+import { getSupabaseClientForToken } from './supabaseClient.ts';
+import { v4Fallback } from './uuidHelper.ts';
+import type {
   CoachMessage,
   DashboardSummary,
   MealEntry,
   MealPlan,
+  NutritionBackupPayload,
+  NutritionHistoryResponse,
+  NutritionRestoreResult,
   ProgressPhoto,
   TrainingPlan,
   TrainingPlanDay,
@@ -20,16 +24,14 @@ import {
   WorkoutLog,
   WorkoutPreferences,
   WorkoutProgram,
-} from '../types';
-import { calculateNutritionTargets, formatShortWeekday, getLastNDaysISO, getTodayISO } from '../utils/nutrition';
-import { DEFAULT_WORKOUT_CATALOG } from './seedWorkouts';
-import { buildDefaultTrainingPlan } from '../utils/trainingPlans';
-import { buildExercisesFromIds } from '../database/exerciseLibrary';
+} from '../types/index.ts';
+import { calculateNutritionTargets, formatShortWeekday, getLastNDaysISO, getTodayISO } from '../utils/nutrition.ts';
+import { buildMealContentSignature, buildNutritionHistory, shiftDateISO } from '../utils/nutritionHistory.ts';
+import { DEFAULT_WORKOUT_CATALOG } from './seedWorkouts.ts';
+import { buildDefaultTrainingPlan } from '../utils/trainingPlans.ts';
+import { buildExercisesFromIds } from '../database/exerciseLibrary.ts';
 
-const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+ensureAppDirectories();
 
 const CATALOG_BY_ID = new Map(DEFAULT_WORKOUT_CATALOG.map((w) => [w.id, w]));
 const CATALOG_BY_TITLE = new Map(DEFAULT_WORKOUT_CATALOG.map((w) => [w.title.trim().toLowerCase(), w]));
@@ -307,11 +309,46 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
     goal: merged.goal,
   });
 
-  const finalCal = updates.daily_calorie_target ?? recalculated.daily_calorie_target;
-  const finalProt = updates.protein_target_g ?? recalculated.protein_target_g;
-  const finalCarbs = updates.carbs_target_g ?? recalculated.carbs_target_g;
-  const finalFat = updates.fat_target_g ?? recalculated.fat_target_g;
-  const finalWater = updates.water_target_ml ?? recalculated.water_target_ml;
+  const clampTarget = (val: unknown, fallback: number, min: number, max: number): number => {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, Math.round(n)));
+  };
+
+  const bioChanged =
+    (updates.age !== undefined && Number(updates.age) !== Number(current.age)) ||
+    (updates.sex !== undefined && updates.sex !== current.sex) ||
+    (updates.height_cm !== undefined && Number(updates.height_cm) !== Number(current.height_cm)) ||
+    (updates.current_weight_kg !== undefined && Number(updates.current_weight_kg) !== Number(current.current_weight_kg)) ||
+    (updates.activity_level !== undefined && updates.activity_level !== current.activity_level) ||
+    (updates.goal !== undefined && updates.goal !== current.goal);
+
+  const fallbackCal = bioChanged ? recalculated.daily_calorie_target : current.daily_calorie_target;
+  const fallbackProt = bioChanged ? recalculated.protein_target_g : current.protein_target_g;
+  const fallbackCarbs = bioChanged ? recalculated.carbs_target_g : current.carbs_target_g;
+  const fallbackFat = bioChanged ? recalculated.fat_target_g : current.fat_target_g;
+  const fallbackWater = current.water_target_ml || recalculated.water_target_ml;
+
+  const finalCal =
+    updates.daily_calorie_target !== undefined
+      ? clampTarget(updates.daily_calorie_target, fallbackCal, 800, 8000)
+      : fallbackCal;
+  const finalProt =
+    updates.protein_target_g !== undefined
+      ? clampTarget(updates.protein_target_g, fallbackProt, 20, 500)
+      : fallbackProt;
+  const finalCarbs =
+    updates.carbs_target_g !== undefined
+      ? clampTarget(updates.carbs_target_g, fallbackCarbs, 0, 1000)
+      : fallbackCarbs;
+  const finalFat =
+    updates.fat_target_g !== undefined
+      ? clampTarget(updates.fat_target_g, fallbackFat, 15, 350)
+      : fallbackFat;
+  const finalWater =
+    updates.water_target_ml !== undefined
+      ? clampTarget(updates.water_target_ml, fallbackWater, 500, 10000)
+      : fallbackWater;
   const now = new Date().toISOString();
 
   const sb = getSupabaseClientForToken();
@@ -391,6 +428,560 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
   return (await getProfileById(userId))!;
 }
 
+function parseMealRow(r: Record<string, unknown>): MealEntry {
+  return {
+    id: String(r.id),
+    user_id: String(r.user_id),
+    date: String(r.date),
+    category: r.category as MealEntry['category'],
+    title: String(r.title),
+    description: String(r.description || ''),
+    calories: Number(r.calories),
+    protein_g: Number(r.protein_g),
+    carbs_g: Number(r.carbs_g),
+    fat_g: Number(r.fat_g),
+    fiber_g: Number(r.fiber_g || 0),
+    image_url: (r.image_url as string | null) ?? null,
+    items: parseJsonField(r.items, []),
+    ai_analyzed: Boolean(r.ai_analyzed),
+    created_at: String(r.created_at),
+  };
+}
+
+function parseMealPlanRow(r: Record<string, unknown>): MealPlan {
+  return {
+    id: String(r.id),
+    user_id: String(r.user_id),
+    title: String(r.title),
+    goal: r.goal as MealPlan['goal'],
+    total_calories: Number(r.total_calories),
+    total_protein_g: Number(r.total_protein_g),
+    total_carbs_g: Number(r.total_carbs_g),
+    total_fat_g: Number(r.total_fat_g),
+    meals: parseJsonField(r.meals, []),
+    notes: String(r.notes || ''),
+    created_at: String(r.created_at),
+  };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function listMealsBetween(
+  userId: string,
+  fromDate?: string,
+  toDate?: string
+): Promise<MealEntry[]> {
+  const sb = getSupabaseClientForToken();
+  if (sb) {
+    const pageSize = 1000;
+    let offset = 0;
+    const collected: MealEntry[] = [];
+    while (true) {
+      let q = sb
+        .from('meals')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (fromDate) q = q.gte('date', fromDate);
+      if (toDate) q = q.lte('date', toDate);
+
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      const batch = (data || []).map((row) => parseMealRow(row as Record<string, unknown>));
+      collected.push(...batch);
+      if (batch.length < pageSize) break;
+      offset += pageSize;
+    }
+    return collected;
+  }
+
+  const clauses = ['user_id = ?'];
+  const args: unknown[] = [userId];
+  if (fromDate) {
+    clauses.push('date >= ?');
+    args.push(fromDate);
+  }
+  if (toDate) {
+    clauses.push('date <= ?');
+    args.push(toDate);
+  }
+  const rows = db
+    .prepare(`SELECT * FROM meals WHERE ${clauses.join(' AND ')} ORDER BY date DESC, created_at DESC`)
+    .all(...args) as Record<string, unknown>[];
+
+  return rows.map(parseMealRow);
+}
+
+export async function listWaterBetween(
+  userId: string,
+  fromDate?: string,
+  toDate?: string
+): Promise<WaterLog[]> {
+  const sb = getSupabaseClientForToken();
+  if (sb) {
+    const pageSize = 1000;
+    let offset = 0;
+    const collected: WaterLog[] = [];
+    while (true) {
+      let q = sb
+        .from('water_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (fromDate) q = q.gte('date', fromDate);
+      if (toDate) q = q.lte('date', toDate);
+
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      const batch = (data || []) as WaterLog[];
+      collected.push(...batch);
+      if (batch.length < pageSize) break;
+      offset += pageSize;
+    }
+    return collected;
+  }
+
+  const clauses = ['user_id = ?'];
+  const args: unknown[] = [userId];
+  if (fromDate) {
+    clauses.push('date >= ?');
+    args.push(fromDate);
+  }
+  if (toDate) {
+    clauses.push('date <= ?');
+    args.push(toDate);
+  }
+  return db
+    .prepare(`SELECT * FROM water_logs WHERE ${clauses.join(' AND ')} ORDER BY date DESC`)
+    .all(...args) as WaterLog[];
+}
+
+export async function getNutritionHistory(userId: string, days = 30): Promise<NutritionHistoryResponse> {
+  const clampedDays = Math.min(730, Math.max(1, Math.round(Number(days) || 30)));
+  const toDate = getTodayISO();
+  const fromDate = shiftDateISO(toDate, -(clampedDays - 1));
+
+  const [profile, meals, waterLogs] = await Promise.all([
+    getProfileById(userId),
+    listMealsBetween(userId, fromDate, toDate),
+    listWaterBetween(userId, fromDate, toDate),
+  ]);
+
+  return buildNutritionHistory({
+    meals,
+    waterLogs,
+    targetCalories: profile?.daily_calorie_target ?? 2000,
+    waterTargetMl: profile?.water_target_ml ?? 2000,
+    days: clampedDays,
+    endDate: toDate,
+  });
+}
+
+async function listAllMealPlansUnlimited(userId: string): Promise<MealPlan[]> {
+  const sb = getSupabaseClientForToken();
+  if (sb) {
+    const pageSize = 1000;
+    let offset = 0;
+    const collected: MealPlan[] = [];
+    while (true) {
+      const { data, error } = await sb
+        .from('meal_plans')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw new Error(error.message);
+      const batch = (data || []).map((row) => parseMealPlanRow(row as Record<string, unknown>));
+      collected.push(...batch);
+      if (batch.length < pageSize) break;
+      offset += pageSize;
+    }
+    return collected;
+  }
+
+  const rows = db
+    .prepare('SELECT * FROM meal_plans WHERE user_id = ? ORDER BY created_at DESC')
+    .all(userId) as Record<string, unknown>[];
+  return rows.map(parseMealPlanRow);
+}
+
+async function listAllWeightLogsUnlimited(userId: string): Promise<WeightLog[]> {
+  const sb = getSupabaseClientForToken();
+  if (sb) {
+    const pageSize = 1000;
+    let offset = 0;
+    const collected: WeightLog[] = [];
+    while (true) {
+      const { data, error } = await sb
+        .from('weight_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: true })
+        .order('created_at', { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw new Error(error.message);
+      const batch = (data || []) as WeightLog[];
+      collected.push(...batch);
+      if (batch.length < pageSize) break;
+      offset += pageSize;
+    }
+    return collected;
+  }
+
+  return db
+    .prepare('SELECT * FROM weight_logs WHERE user_id = ? ORDER BY date ASC, created_at ASC')
+    .all(userId) as WeightLog[];
+}
+
+export async function exportNutritionBackup(userId: string): Promise<NutritionBackupPayload> {
+  const [meals, water_logs, meal_plans, weight_logs] = await Promise.all([
+    listMealsBetween(userId),
+    listWaterBetween(userId),
+    listAllMealPlansUnlimited(userId),
+    listAllWeightLogsUnlimited(userId),
+  ]);
+
+  return {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    app: 'PRATO & TREINO',
+    meals,
+    water_logs,
+    meal_plans,
+    weight_logs,
+  };
+}
+
+function buildPlanSignature(plan: Pick<MealPlan, 'title' | 'total_calories' | 'goal' | 'meals'>): string {
+  return `${plan.title.trim().toLowerCase()}|${Math.round(Number(plan.total_calories) || 0)}|${plan.goal}|${Array.isArray(plan.meals) ? plan.meals.length : 0}`;
+}
+
+function buildWeightSignature(weight: Pick<WeightLog, 'date' | 'weight_kg'>): string {
+  return `${weight.date.trim()}|${Number(weight.weight_kg).toFixed(2)}`;
+}
+
+export async function importNutritionBackup(
+  userId: string,
+  backup: NutritionBackupPayload
+): Promise<NutritionRestoreResult> {
+  const [existingMeals, existingWater, existingPlans, existingWeights] = await Promise.all([
+    listMealsBetween(userId),
+    listWaterBetween(userId),
+    listAllMealPlansUnlimited(userId),
+    listAllWeightLogsUnlimited(userId),
+  ]);
+
+  // Snapshot pré-restauração para detectar duplicatas que já estão no banco
+  const existingMealIds = new Set(existingMeals.map((m) => m.id));
+  const existingMealSigs = new Set(existingMeals.map((m) => buildMealContentSignature(m)));
+
+  const seenBackupMealIds = new Set<string>();
+  const mealsToInsert: MealEntry[] = [];
+  let mealsSkipped = 0;
+
+  for (const rawMeal of backup.meals) {
+    const incomingId = rawMeal.id?.trim() || '';
+    const sig = buildMealContentSignature(rawMeal);
+
+    // Ignora se o ID já existe no banco (ou duplicata de mesmo ID no lote) OU se o conteúdo já existe no banco antes da restauração
+    if ((incomingId && (existingMealIds.has(incomingId) || seenBackupMealIds.has(incomingId))) || existingMealSigs.has(sig)) {
+      mealsSkipped += 1;
+      continue;
+    }
+
+    if (incomingId) seenBackupMealIds.add(incomingId);
+    mealsToInsert.push({
+      ...rawMeal,
+      id: incomingId || v4Fallback(),
+      user_id: userId,
+    });
+  }
+
+  // Consolida maior valor de água por dia no backup e compara com banco
+  const backupWaterByDate = new Map<string, number>();
+  for (const wl of backup.water_logs) {
+    const amount = Math.max(0, Math.round(Number(wl.amount_ml) || 0));
+    const prev = backupWaterByDate.get(wl.date) || 0;
+    if (amount > prev) backupWaterByDate.set(wl.date, amount);
+  }
+  const existingWaterByDate = new Map(existingWater.map((w) => [w.date, w]));
+  const waterUpserts: Array<{ id: string; date: string; amount_ml: number; isUpdate: boolean }> = [];
+  for (const [date, backupAmount] of backupWaterByDate.entries()) {
+    const current = existingWaterByDate.get(date);
+    const currentAmount = current ? Number(current.amount_ml || 0) : 0;
+    if (backupAmount > currentAmount) {
+      waterUpserts.push({
+        id: current?.id || v4Fallback(),
+        date,
+        amount_ml: backupAmount,
+        isUpdate: Boolean(current?.id),
+      });
+    }
+  }
+
+  // Planos alimentares (aditivo sem duplicar)
+  const existingPlanIds = new Set(existingPlans.map((p) => p.id));
+  const existingPlanSigs = new Set(existingPlans.map((p) => buildPlanSignature(p)));
+  const seenBackupPlanIds = new Set<string>();
+  const seenBackupPlanSigs = new Set<string>();
+  const plansToInsert: MealPlan[] = [];
+  for (const rawPlan of backup.meal_plans) {
+    const incomingId = rawPlan.id?.trim() || '';
+    const sig = buildPlanSignature(rawPlan);
+    if (
+      (incomingId && (existingPlanIds.has(incomingId) || seenBackupPlanIds.has(incomingId))) ||
+      existingPlanSigs.has(sig) ||
+      seenBackupPlanSigs.has(sig)
+    ) {
+      continue;
+    }
+    if (incomingId) seenBackupPlanIds.add(incomingId);
+    seenBackupPlanSigs.add(sig);
+    plansToInsert.push({
+      ...rawPlan,
+      id: incomingId || v4Fallback(),
+      user_id: userId,
+    });
+  }
+
+  // Peso corporal (aditivo sem duplicar)
+  const existingWeightIds = new Set(existingWeights.map((w) => w.id));
+  const existingWeightSigs = new Set(existingWeights.map((w) => buildWeightSignature(w)));
+  const seenBackupWeightIds = new Set<string>();
+  const seenBackupWeightSigs = new Set<string>();
+  const weightsToInsert: WeightLog[] = [];
+  for (const rawWeight of backup.weight_logs) {
+    const incomingId = rawWeight.id?.trim() || '';
+    const sig = buildWeightSignature(rawWeight);
+    if (
+      (incomingId && (existingWeightIds.has(incomingId) || seenBackupWeightIds.has(incomingId))) ||
+      existingWeightSigs.has(sig) ||
+      seenBackupWeightSigs.has(sig)
+    ) {
+      continue;
+    }
+    if (incomingId) seenBackupWeightIds.add(incomingId);
+    seenBackupWeightSigs.add(sig);
+    weightsToInsert.push({
+      ...rawWeight,
+      id: incomingId || v4Fallback(),
+      user_id: userId,
+    });
+  }
+
+  const now = new Date().toISOString();
+  const sb = getSupabaseClientForToken();
+  if (sb) {
+    let mealsAdded = 0;
+    const chunkSize = 200;
+    for (let i = 0; i < mealsToInsert.length; i += chunkSize) {
+      const chunk = mealsToInsert.slice(i, i + chunkSize).map((m) => ({
+        id: UUID_RE.test(m.id) ? m.id : v4Fallback(),
+        user_id: userId,
+        date: m.date,
+        category: m.category,
+        title: m.title,
+        description: m.description || '',
+        calories: Math.round(m.calories),
+        protein_g: Number(m.protein_g),
+        carbs_g: Number(m.carbs_g),
+        fat_g: Number(m.fat_g),
+        fiber_g: Number(m.fiber_g || 0),
+        image_url: m.image_url || null,
+        items: m.items || [],
+        ai_analyzed: Boolean(m.ai_analyzed),
+        created_at: m.created_at || now,
+      }));
+      const { error } = await sb.from('meals').insert(chunk);
+      if (error) {
+        // Fallback em caso de colisão global de UUID entre usuários
+        for (const row of chunk) {
+          const singleRes = await sb.from('meals').insert(row);
+          if (singleRes.error) {
+            const retryRes = await sb.from('meals').insert({ ...row, id: v4Fallback() });
+            if (retryRes.error) throw new Error(retryRes.error.message);
+          }
+          mealsAdded += 1;
+        }
+      } else {
+        mealsAdded += chunk.length;
+      }
+    }
+
+    let waterDaysMerged = 0;
+    for (const w of waterUpserts) {
+      const waterId = UUID_RE.test(w.id) ? w.id : v4Fallback();
+      const { error } = await sb
+        .from('water_logs')
+        .upsert(
+          { id: waterId, user_id: userId, date: w.date, amount_ml: w.amount_ml, updated_at: now },
+          { onConflict: 'user_id,date' }
+        );
+      if (error) throw new Error(error.message);
+      waterDaysMerged += 1;
+    }
+
+    let plansAdded = 0;
+    for (const p of plansToInsert) {
+      const payload = {
+        id: UUID_RE.test(p.id) ? p.id : v4Fallback(),
+        user_id: userId,
+        title: p.title,
+        goal: p.goal,
+        total_calories: Math.round(p.total_calories),
+        total_protein_g: Math.round(p.total_protein_g),
+        total_carbs_g: Math.round(p.total_carbs_g),
+        total_fat_g: Math.round(p.total_fat_g),
+        meals: p.meals,
+        notes: p.notes || '',
+        created_at: p.created_at || now,
+      };
+      const { error } = await sb.from('meal_plans').insert(payload);
+      if (error) {
+        const retry = await sb.from('meal_plans').insert({ ...payload, id: v4Fallback() });
+        if (retry.error) throw new Error(retry.error.message);
+      }
+      plansAdded += 1;
+    }
+
+    let weightsAdded = 0;
+    for (const wl of weightsToInsert) {
+      const payload = {
+        id: UUID_RE.test(wl.id) ? wl.id : v4Fallback(),
+        user_id: userId,
+        date: wl.date,
+        weight_kg: Number(wl.weight_kg),
+        waist_cm: wl.waist_cm ?? null,
+        chest_cm: wl.chest_cm ?? null,
+        hip_cm: wl.hip_cm ?? null,
+        arm_cm: wl.arm_cm ?? null,
+        notes: wl.notes || '',
+        created_at: wl.created_at || now,
+      };
+      const { error } = await sb.from('weight_logs').insert(payload);
+      if (error) {
+        const retry = await sb.from('weight_logs').insert({ ...payload, id: v4Fallback() });
+        if (retry.error) throw new Error(retry.error.message);
+      }
+      weightsAdded += 1;
+    }
+
+    return {
+      meals_added: mealsAdded,
+      meals_skipped: mealsSkipped,
+      plans_added: plansAdded,
+      water_days_merged: waterDaysMerged,
+      weights_added: weightsAdded,
+    };
+  }
+
+  // SQLite transacional
+  let mealsAdded = 0;
+  let plansAdded = 0;
+  let waterDaysMerged = 0;
+  let weightsAdded = 0;
+
+  const checkMealIdExists = db.prepare('SELECT 1 FROM meals WHERE id = ? LIMIT 1');
+  const insertMealStmt = db.prepare(`
+    INSERT INTO meals (id, user_id, date, category, title, description, calories, protein_g, carbs_g, fat_g, fiber_g, image_url, items, ai_analyzed, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const updateWaterStmt = db.prepare('UPDATE water_logs SET amount_ml = ?, updated_at = ? WHERE id = ?');
+  const insertWaterStmt = db.prepare('INSERT INTO water_logs (id, user_id, date, amount_ml, updated_at) VALUES (?, ?, ?, ?, ?)');
+  const checkPlanIdExists = db.prepare('SELECT 1 FROM meal_plans WHERE id = ? LIMIT 1');
+  const insertPlanStmt = db.prepare(`
+    INSERT INTO meal_plans (id, user_id, title, goal, total_calories, total_protein_g, total_carbs_g, total_fat_g, meals, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const checkWeightIdExists = db.prepare('SELECT 1 FROM weight_logs WHERE id = ? LIMIT 1');
+  const insertWeightStmt = db.prepare(`
+    INSERT INTO weight_logs (id, user_id, date, weight_kg, waist_cm, chest_cm, hip_cm, arm_cm, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const runRestoreTx = db.transaction(() => {
+    for (const m of mealsToInsert) {
+      const finalId = checkMealIdExists.get(m.id) ? v4Fallback() : m.id;
+      insertMealStmt.run(
+        finalId,
+        userId,
+        m.date,
+        m.category,
+        m.title,
+        m.description || '',
+        Math.round(m.calories),
+        Number(m.protein_g),
+        Number(m.carbs_g),
+        Number(m.fat_g),
+        Number(m.fiber_g || 0),
+        m.image_url || null,
+        JSON.stringify(m.items || []),
+        m.ai_analyzed ? 1 : 0,
+        m.created_at || now
+      );
+      mealsAdded += 1;
+    }
+
+    for (const w of waterUpserts) {
+      if (w.isUpdate) {
+        updateWaterStmt.run(w.amount_ml, now, w.id);
+      } else {
+        insertWaterStmt.run(w.id, userId, w.date, w.amount_ml, now);
+      }
+      waterDaysMerged += 1;
+    }
+
+    for (const p of plansToInsert) {
+      const finalId = checkPlanIdExists.get(p.id) ? v4Fallback() : p.id;
+      insertPlanStmt.run(
+        finalId,
+        userId,
+        p.title,
+        p.goal,
+        Math.round(p.total_calories),
+        Math.round(p.total_protein_g),
+        Math.round(p.total_carbs_g),
+        Math.round(p.total_fat_g),
+        JSON.stringify(p.meals || []),
+        p.notes || '',
+        p.created_at || now
+      );
+      plansAdded += 1;
+    }
+
+    for (const wl of weightsToInsert) {
+      const finalId = checkWeightIdExists.get(wl.id) ? v4Fallback() : wl.id;
+      insertWeightStmt.run(
+        finalId,
+        userId,
+        wl.date,
+        Number(wl.weight_kg),
+        wl.waist_cm ?? null,
+        wl.chest_cm ?? null,
+        wl.hip_cm ?? null,
+        wl.arm_cm ?? null,
+        wl.notes || '',
+        wl.created_at || now
+      );
+      weightsAdded += 1;
+    }
+  });
+
+  runRestoreTx();
+
+  return {
+    meals_added: mealsAdded,
+    meals_skipped: mealsSkipped,
+    plans_added: plansAdded,
+    water_days_merged: waterDaysMerged,
+    weights_added: weightsAdded,
+  };
+}
+
 // --- MEALS ---
 export async function listMeals(userId: string, date?: string): Promise<MealEntry[]> {
   const sb = getSupabaseClientForToken();
@@ -410,23 +1001,7 @@ export async function listMeals(userId: string, date?: string): Promise<MealEntr
         .prepare('SELECT * FROM meals WHERE user_id = ? ORDER BY date DESC, created_at DESC LIMIT 100')
         .all(userId) as Record<string, unknown>[]);
 
-  return rows.map((r) => ({
-    id: String(r.id),
-    user_id: String(r.user_id),
-    date: String(r.date),
-    category: r.category as MealEntry['category'],
-    title: String(r.title),
-    description: String(r.description || ''),
-    calories: Number(r.calories),
-    protein_g: Number(r.protein_g),
-    carbs_g: Number(r.carbs_g),
-    fat_g: Number(r.fat_g),
-    fiber_g: Number(r.fiber_g || 0),
-    image_url: (r.image_url as string | null) ?? null,
-    items: parseJsonField(r.items, []),
-    ai_analyzed: Boolean(r.ai_analyzed),
-    created_at: String(r.created_at),
-  }));
+  return rows.map(parseMealRow);
 }
 
 export async function addMeal(userId: string, input: Omit<MealEntry, 'id' | 'user_id' | 'created_at'>): Promise<MealEntry> {
@@ -517,19 +1092,7 @@ export async function listMealPlans(userId: string): Promise<MealPlan[]> {
   const rows = db
     .prepare('SELECT * FROM meal_plans WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
     .all(userId) as Record<string, unknown>[];
-  return rows.map((r) => ({
-    id: String(r.id),
-    user_id: String(r.user_id),
-    title: String(r.title),
-    goal: r.goal as MealPlan['goal'],
-    total_calories: Number(r.total_calories),
-    total_protein_g: Number(r.total_protein_g),
-    total_carbs_g: Number(r.total_carbs_g),
-    total_fat_g: Number(r.total_fat_g),
-    meals: parseJsonField(r.meals, []),
-    notes: String(r.notes || ''),
-    created_at: String(r.created_at),
-  }));
+  return rows.map(parseMealPlanRow);
 }
 
 export async function saveMealPlan(userId: string, plan: Omit<MealPlan, 'id' | 'user_id' | 'created_at'>): Promise<MealPlan> {

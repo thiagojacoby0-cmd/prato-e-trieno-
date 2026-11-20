@@ -4,12 +4,12 @@ const config: CapacitorConfig = {
   appId: 'br.com.pratotreino.app',
   appName: 'PRATO & TREINO',
   webDir: 'dist',
-  backgroundColor: '#0A0D0B',
+  backgroundColor: '#061314',
   server: {
     androidScheme: 'https',
   },
   android: {
-    backgroundColor: '#0A0D0B',
+    backgroundColor: '#061314',
   },
 };
 

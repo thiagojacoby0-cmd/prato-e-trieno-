@@ -1,17 +1,73 @@
 import React, { useState } from 'react';
-import { Activity, ArrowRight, Mail } from 'lucide-react';
+import { ArrowRight, Mail, UserPlus } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { getHasAccount, getLastEmail } from '../services/apiClient';
 import { PWAInstallButton } from '../components/PWAInstallButton';
+import { BiologicalSex, GoalType } from '../types';
+import { GOAL_LABELS } from '../utils/nutrition';
 
 export function AuthPage() {
-  const { sendEmailOtp, verifyEmailOtp, login, enterPersonalMode, configInfo, initError } = useAuth();
-  const [mode, setMode] = useState<'otp' | 'password'>('otp');
-  const [email, setEmail] = useState('thiagojacoby0@gmail.com');
+  const { sendEmailOtp, verifyEmailOtp, login, register, enterPersonalMode, configInfo, initError } =
+    useAuth();
+  const hasExistingAccount = typeof window !== 'undefined' && getHasAccount();
+  const savedEmail = typeof window !== 'undefined' ? getLastEmail() : '';
+  const [mode, setMode] = useState<'register' | 'password' | 'otp'>(
+    hasExistingAccount ? 'password' : 'register'
+  );
+
+  // Login / OTP fields
+  const [email, setEmail] = useState(savedEmail);
   const [otpSent, setOtpSent] = useState(false);
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
+
+  // Cadastro fields
+  const [fullName, setFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [age, setAge] = useState('28');
+  const [sex, setSex] = useState<BiologicalSex>('masculino');
+  const [heightCm, setHeightCm] = useState('175');
+  const [currentWeight, setCurrentWeight] = useState('78');
+  const [targetWeight, setTargetWeight] = useState('72');
+  const [goal, setGoal] = useState<GoalType>('emagrecimento');
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(initError);
+
+  const handleFieldFocus = (e: React.FocusEvent<HTMLElement>) => {
+    const target = e.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+    ) {
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 220);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await register(fullName.trim(), regEmail.trim(), regPassword, {
+        age: Math.max(14, Math.min(95, Number(age) || 28)),
+        sex,
+        height_cm: Math.max(120, Math.min(230, Number(heightCm) || 175)),
+        current_weight_kg: Math.max(35, Math.min(250, Number(currentWeight) || 78)),
+        target_weight_kg: Math.max(35, Math.min(250, Number(targetWeight) || 72)),
+        goal,
+        onboarding_completed: true,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível concluir seu cadastro.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,76 +122,253 @@ export function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#0A0D0B] px-4 py-10 text-[#F4F7F5]">
-      <div className="w-full max-w-md space-y-6">
+    <div
+      onFocusCapture={handleFieldFocus}
+      className="pt-safe pb-safe flex min-h-[100dvh] flex-col items-center justify-start bg-gradient-to-br from-[#EBF8F2] via-[#F4FBF8] to-[#FAFDFC] px-4 py-8 text-[#0F2A2A] dark:from-[#051011] dark:via-[#071618] dark:to-[#0A1E20] dark:text-[#F2FAFA] sm:justify-center"
+    >
+      <div className="w-full max-w-md space-y-5 pb-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#22C55E] text-[#06120A]">
-              <Activity className="h-5 w-5 stroke-[2.5]" />
-            </span>
+          <div className="flex items-center gap-3">
+            <img
+              src="/app-logo.png"
+              alt="PRATO & TREINO"
+              className="h-11 w-11 shrink-0 rounded-2xl object-cover shadow-md shadow-[#12BFA3]/25"
+            />
             <div>
-              <h1 className="font-display text-lg font-bold tracking-tight text-[#F4F7F5]">
+              <h1 className="font-display text-lg font-bold tracking-tight text-[#0F2A2A]">
                 PRATO &amp; TREINO
               </h1>
-              <p className="text-xs text-[#8F9E95]">Uso pessoal · Acesso sem senha</p>
+              <p className="text-xs text-[#648482]">Cadastro pessoal e metas</p>
             </div>
           </div>
           <PWAInstallButton compact />
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111613] p-6 sm:p-7">
+        <div className="rounded-3xl border border-[#E1EEE9] bg-white p-5 shadow-[0_14px_34px_-16px_rgba(15,42,42,0.12)] sm:p-7">
           {(!configInfo?.supabaseConfigured || configInfo?.supabaseServiceRole) && (
             <div className="mb-5">
               <button
                 type="button"
                 onClick={handleDirectAccess}
                 disabled={submitting}
-                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#22C55E] px-4 py-3 text-sm font-semibold text-[#06120A] transition-colors hover:bg-[#16A34A] disabled:opacity-60"
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-[#12BFA3]/40 bg-[#EBF9F6] px-4 py-3 text-sm font-semibold text-[#0C947E] transition-colors hover:bg-[#DCF4EE] disabled:opacity-60"
               >
-                <span>{submitting ? 'Entrando...' : 'Entrar no meu app agora (sem senha)'}</span>
+                <span>{submitting ? 'Entrando...' : 'Entrar sem senha (acesso rápido)'}</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           )}
 
-          <div className="mb-5 flex items-center gap-1 rounded-xl bg-[#0A0D0B] p-1">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('otp');
-                setError(null);
-              }}
-              className={`flex-1 rounded-lg py-2 text-xs font-medium transition-colors ${
-                mode === 'otp' ? 'bg-[#1A231D] text-[#F4F7F5]' : 'text-[#8F9E95] hover:text-white'
-              }`}
-            >
-              Código por e-mail (sem senha)
-            </button>
+          <div className="mb-5 grid grid-cols-3 gap-1 rounded-xl bg-[#EDF7F3] p-1">
             <button
               type="button"
               onClick={() => {
                 setMode('password');
                 setError(null);
               }}
-              className={`flex-1 rounded-lg py-2 text-xs font-medium transition-colors ${
-                mode === 'password' ? 'bg-[#1A231D] text-[#F4F7F5]' : 'text-[#8F9E95] hover:text-white'
+              className={`min-h-[42px] rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
+                mode === 'password' ? 'bg-white text-[#0C947E] shadow-xs' : 'text-[#5C7B79] hover:text-[#0F2A2A]'
               }`}
             >
-              Entrar com senha
+              Entrar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setError(null);
+              }}
+              className={`min-h-[42px] rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
+                mode === 'register' ? 'bg-white text-[#0C947E] shadow-xs' : 'text-[#5C7B79] hover:text-[#0F2A2A]'
+              }`}
+            >
+              Criar cadastro
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('otp');
+                setError(null);
+              }}
+              className={`min-h-[42px] rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
+                mode === 'otp' ? 'bg-white text-[#0C947E] shadow-xs' : 'text-[#5C7B79] hover:text-[#0F2A2A]'
+              }`}
+            >
+              Código
             </button>
           </div>
 
           {error && (
-            <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-200">
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
               {error}
             </div>
           )}
 
-          {mode === 'otp' ? (
+          {mode === 'register' ? (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label htmlFor="reg-name" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                  Nome completo
+                </label>
+                <input
+                  id="reg-name"
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Seu nome"
+                  className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="reg-email" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                  E-mail
+                </label>
+                <input
+                  id="reg-email"
+                  type="email"
+                  required
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="seuemail@exemplo.com"
+                  className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="reg-password" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                  Crie uma senha (mínimo 6 caracteres)
+                </label>
+                <input
+                  id="reg-password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="••••••"
+                  className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="reg-age" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                    Idade
+                  </label>
+                  <input
+                    id="reg-age"
+                    type="number"
+                    inputMode="numeric"
+                    min={14}
+                    max={95}
+                    required
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 font-mono text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="reg-sex" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                    Sexo
+                  </label>
+                  <select
+                    id="reg-sex"
+                    value={sex}
+                    onChange={(e) => setSex(e.target.value as BiologicalSex)}
+                    className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                  >
+                    <option value="masculino">Masculino</option>
+                    <option value="feminino">Feminino</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="reg-height" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                    Altura (cm)
+                  </label>
+                  <input
+                    id="reg-height"
+                    type="number"
+                    inputMode="numeric"
+                    min={120}
+                    max={230}
+                    required
+                    value={heightCm}
+                    onChange={(e) => setHeightCm(e.target.value)}
+                    className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 font-mono text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="reg-weight" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                    Peso atual (kg)
+                  </label>
+                  <input
+                    id="reg-weight"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min={35}
+                    max={250}
+                    required
+                    value={currentWeight}
+                    onChange={(e) => setCurrentWeight(e.target.value)}
+                    className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 font-mono text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="reg-target-weight" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                    Peso meta (kg)
+                  </label>
+                  <input
+                    id="reg-target-weight"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min={35}
+                    max={250}
+                    required
+                    value={targetWeight}
+                    onChange={(e) => setTargetWeight(e.target.value)}
+                    className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 font-mono text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="reg-goal" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
+                    Objetivo
+                  </label>
+                  <select
+                    id="reg-goal"
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value as GoalType)}
+                    className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-3.5 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
+                  >
+                    {Object.entries(GOAL_LABELS).map(([k, label]) => (
+                      <option key={k} value={k}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#12BFA3] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[#12BFA3]/25 transition-colors hover:bg-[#0EA88F] disabled:opacity-60"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>{submitting ? 'Salvando cadastro...' : 'Cadastrar e entrar no app'}</span>
+              </button>
+            </form>
+          ) : mode === 'otp' ? (
             !otpSent ? (
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div>
-                  <label htmlFor="otp-email" className="mb-1.5 block text-xs font-medium text-[#C2CCC6]">
+                  <label htmlFor="otp-email" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
                     Seu e-mail
                   </label>
                   <input
@@ -144,13 +377,14 @@ export function AuthPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-4 py-2.5 text-sm text-[#F4F7F5] focus:border-[#22C55E] focus:outline-none"
+                    placeholder="seuemail@exemplo.com"
+                    className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-[#22C55E]/40 bg-[#22C55E]/15 px-4 py-2.5 text-sm font-semibold text-[#22C55E] hover:bg-[#22C55E]/25 disabled:opacity-60"
+                  className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-[#12BFA3]/40 bg-[#EBF9F6] px-4 py-2.5 text-sm font-semibold text-[#0C947E] hover:bg-[#DCF4EE] disabled:opacity-60"
                 >
                   <Mail className="h-4 w-4" />
                   <span>{submitting ? 'Enviando...' : 'Enviar código de acesso'}</span>
@@ -158,8 +392,8 @@ export function AuthPage() {
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-4">
-                <p className="text-xs text-[#9AA8A0]">
-                  Enviamos um código para <strong className="text-[#F4F7F5]">{email}</strong>. Digite abaixo para manter sua sessão conectada no celular:
+                <p className="text-xs text-[#5C7B79]">
+                  Enviamos um código para <strong className="text-[#0F2A2A]">{email}</strong>. Digite abaixo para entrar:
                 </p>
                 <input
                   type="text"
@@ -167,19 +401,19 @@ export function AuthPage() {
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="Código de 6 dígitos"
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-4 py-2.5 font-mono text-sm text-[#F4F7F5] focus:border-[#22C55E] focus:outline-none"
+                  className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-2.5 font-mono text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
                 />
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#22C55E] px-4 py-2.5 text-sm font-semibold text-[#06120A] hover:bg-[#16A34A] disabled:opacity-60"
+                  className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-[#12BFA3] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0EA88F] disabled:opacity-60"
                 >
                   <span>{submitting ? 'Validando...' : 'Confirmar código'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setOtpSent(false)}
-                  className="w-full text-xs text-[#8F9E95] hover:text-white"
+                  className="min-h-[40px] w-full text-xs text-[#648482] hover:text-[#0F2A2A]"
                 >
                   Reenviar ou trocar e-mail
                 </button>
@@ -188,7 +422,7 @@ export function AuthPage() {
           ) : (
             <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
-                <label htmlFor="email" className="mb-1.5 block text-xs font-medium text-[#C2CCC6]">
+                <label htmlFor="email" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
                   E-mail
                 </label>
                 <input
@@ -197,11 +431,12 @@ export function AuthPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-4 py-2.5 text-sm text-[#F4F7F5] focus:border-[#22C55E] focus:outline-none"
+                  placeholder="seuemail@exemplo.com"
+                  className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
                 />
               </div>
               <div>
-                <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-[#C2CCC6]">
+                <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-[#2E4A48]">
                   Senha
                 </label>
                 <input
@@ -210,13 +445,14 @@ export function AuthPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0D0B] px-4 py-2.5 text-sm text-[#F4F7F5] focus:border-[#22C55E] focus:outline-none"
+                  placeholder="••••••"
+                  className="min-h-[46px] w-full rounded-xl border border-[#D3E5DF] bg-[#F4FAF7] px-4 py-2.5 text-base text-[#0F2A2A] focus:border-[#12BFA3] focus:outline-none sm:text-sm"
                 />
               </div>
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#22C55E] px-4 py-2.5 text-sm font-semibold text-[#06120A] hover:bg-[#16A34A] disabled:opacity-60"
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#12BFA3] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[#12BFA3]/25 hover:bg-[#0EA88F] disabled:opacity-60"
               >
                 <span>{submitting ? 'Entrando...' : 'Entrar'}</span>
               </button>
